@@ -253,3 +253,20 @@ def test_unreachable_webhook_does_not_block(client):
     started = time.time()
     notify.send("http://127.0.0.1:9/dood", "x")
     assert time.time() - started < 0.5
+
+
+def test_claim_hands_over_lessons_from_human_rejections_of_the_same_kind(client):
+    inc = to_validated(client)
+    post(client, f"/{inc}/decision", {"decision": "reject", "comment": "bewaar de nieuwste rij, niet een willekeurige"})
+    better = {**PROPOSAL, "fixes": [{**FIX, "recipe_sql": ["delete from work.orders where false"], "rationale": "nieuwste rij bewaren"}]}
+    post(client, f"/{inc}/claim"); post(client, f"/{inc}/proposal", better); post(client, f"/{inc}/validation", PASSED)
+    post(client, f"/{inc}/decision", {"decision": "approve"}); post(client, f"/{inc}/resolution", {"outcome": "released"})
+
+    same_kind = post(client, "", {**INCIDENT, "batch_id": "batch_2", "quarantine_path": "batch_2"})["id"]
+    lessons = post(client, f"/{same_kind}/claim")["lessons"]
+    assert lessons == [{"issue_type": "duplicates", "rejected_recipe": FIX["recipe_sql"], "rejected_rationale": FIX["rationale"],
+                        "human_comment": "bewaar de nieuwste rij, niet een willekeurige",
+                        "approved_recipe": ["delete from work.orders where false"], "approved_rationale": "nieuwste rij bewaren"}]
+
+    other_kind = post(client, "", {**INCIDENT, "batch_id": "batch_3", "findings": [{**FINDING, "issue_type": "null_spike"}]})["id"]
+    assert post(client, f"/{other_kind}/claim")["lessons"] == []

@@ -93,6 +93,8 @@ Details van de berichten, mappen en statussen: [`contracts/README.md`](contracts
 - De instructies per soort fout staan in `healer/prompts/`.
 - Voor Sonnet en Opus staat de server-side fallback van de Claude API aan: weigert een veiligheidsfilter een verzoek, dan neemt een ander model het over. Uitzetten kan per route met `fallbacks: false`.
 
+**Leren van afkeuringen.** Keurt een mens een voorstel af, dan onthoudt de console de opmerking en wat er daarna wel is goedgekeurd. Bij een volgend incident van dezelfde soort krijgen de agents die lessen mee.
+
 **Quarantaine per bestelling.** Raakt een fout alleen losse rijen (lege waarden, duplicaten, ongeldige waarden, kapotte verwijzingen) en is hoogstens de helft van de bestellingen geraakt, dan laat de pipeline de overige bestellingen alvast door, mits dat deel zelf alle controles haalt. Alleen de geraakte bestellingen wachten. Na herstel vervangt de herstelde batch het voorlopige deel. Bij schema drift of een afwijkend volume wacht altijd de hele batch. Uitzetten kan met `PARTIAL_RELEASE=false`.
 
 Zit er in één batch meer dan één soort fout, dan behandelt de healer ze na elkaar op dezelfde werkkopie, schema drift eerst. Je keurt per batch goed, omdat een batch als geheel wordt ingelezen.

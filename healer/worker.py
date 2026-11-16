@@ -51,7 +51,8 @@ def heal(client, routing: dict[str, llm.Route], incident: dict) -> dict:
     for issue_type in sorted(by_type, key=ORDER.index):
         log(f"{incident['id']}: {issue_type} -> {routing[issue_type].model}")
         fix = agents.heal_issue(client, routing[issue_type], ws, issue_type, by_type[issue_type],
-                                incident["findings"], incident.get("feedback", []), done)
+                                incident["findings"], incident.get("feedback", []), done,
+                                incident.get("lessons"))
         fixes.append(fix)
         if fix["action"] == "discard":
             return {"action": "discard", "candidate_path": None, "fixes": fixes,

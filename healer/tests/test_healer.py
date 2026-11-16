@@ -207,3 +207,17 @@ def test_rule_is_applied_without_claude_and_falls_back_when_it_does_not_fit(bund
                          [("submit_fix", {"action": "discard", "recipe_sql": [], "rationale": "x"})]])
     proposal = worker.heal(client, worker.load_routing(ROOT / "healer/routing.yml"), {**incident, "rule": broken_rule})
     assert proposal.get("rule_id") is None and proposal["action"] == "discard" and len(client.calls) == 2
+
+
+def test_lessons_reach_both_agents_for_their_own_issue_type_only(bundle):
+    client = FakeClient([[("submit_diagnosis", DIAGNOSIS)],
+                         [("submit_fix", {"action": "discard", "recipe_sql": [], "rationale": "x"})]])
+    lessons = [{"issue_type": "duplicates", "rejected_recipe": ["select 1"], "rejected_rationale": "willekeurige rij bewaren",
+                "human_comment": "bewaar de nieuwste rij", "approved_recipe": ["select 2"], "approved_rationale": "nieuwste bewaren"},
+               {"issue_type": "schema_drift", "rejected_recipe": [], "rejected_rationale": "x", "human_comment": "hoort hier niet",
+                "approved_recipe": None, "approved_rationale": None}]
+    agents.heal_issue(client, ROUTE, Workspace(bundle), "duplicates", [FINDING], [FINDING], [], [], lessons)
+    for call in client.calls:
+        prompt = call["messages"][0]["content"]
+        assert "Lessen uit eerdere besluiten" in prompt and "bewaar de nieuwste rij" in prompt and "nieuwste bewaren" in prompt
+        assert "hoort hier niet" not in prompt

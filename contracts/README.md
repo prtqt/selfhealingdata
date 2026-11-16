@@ -37,6 +37,10 @@ quarantine/<batch_id>/
 
 Een goedgekeurd recept kan met `save_as_rule` in het besluit als regel worden bewaard. De console herkent een terugkerende afwijking aan de signatuur van het incident (welke controle faalt op welke kolom) en geeft de passende regel mee in het antwoord op `claim`. De healer past het recept dan toe zonder agent en zet `rule_id` in het voorstel. Doorstaat de kandidaat de poort, dan keurt de console automatisch goed.
 
+## Lessen
+
+Het antwoord op `claim` bevat ook `lessons`: eerdere afkeuringen door een mens bij dezelfde soort fout, met het afgekeurde recept, de opmerking en het recept dat daarna is goedgekeurd.
+
 ## Statussen van een incident
 
 `detected → investigating → proposed → validated → approved → resolved`

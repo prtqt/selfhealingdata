@@ -11,7 +11,7 @@ Tien uitbreidingen, in de volgorde waarin ze gebouwd worden. Elke stap is los op
 | 5 | Meldingen | console | Webhook (Slack-formaat) zodra iets op een besluit wacht of de healer er niet uitkomt. | klaar |
 | 6 | Login en rollen | console, pipeline, healer | Gebruikers met rol product owner of developer; alleen de product owner beslist. Diensten gebruiken een API-token. Uit als er niets is ingesteld. | klaar |
 | 7 | Quarantaine per bestelling | pipeline, console | Bestellingen zonder bevinding gaan alvast door als de rest van de batch de poort haalt; alleen de geraakte bestellingen wachten. | klaar |
-| 8 | Leren van afkeuringen | console, healer | De console geeft per soort fout eerdere afkeuringen met de opmerking en het uiteindelijk goedgekeurde recept; de healer krijgt die mee als context. | gepland |
+| 8 | Leren van afkeuringen | console, healer | De console geeft per soort fout eerdere afkeuringen met de opmerking en het uiteindelijk goedgekeurde recept; de healer krijgt die mee als context. | klaar |
 | 9 | Meer soorten fouten | chaos, pipeline, healer | Verschuivende verdeling (gemiddelde prijs wijkt af van recente weken) als zevende soort, met dbt-model, injector, prompt en route. | gepland |
 | 10 | Bewaking | console | `/metrics` in Prometheus-formaat (incidenten per status, doorlooptijd, kosten, slagingspercentage per model) en healthchecks in compose. | gepland |
 

@@ -80,8 +80,23 @@ def run_agent(client, route: llm.Route, system: str, user: str, tools: list[dict
     raise AgentError(f"geen resultaat binnen {route.max_turns} stappen")
 
 
+def _lessons(lessons: list[dict], issue_type: str) -> str | None:
+    mine = [l for l in lessons if l["issue_type"] == issue_type]
+    if not mine:
+        return None
+    out = ["## Lessen uit eerdere besluiten",
+           "Bij eerdere incidenten van deze soort heeft een mens een voorstel afgekeurd. Dit zegt iets over wat de "
+           "mensen hier belangrijk vinden. Het zijn andere batches: neem de les over, niet het recept."]
+    for l in mine:
+        out.append(f"- Afgekeurd: {l['rejected_rationale']} ({'; '.join(l['rejected_recipe']) or 'weggooien'})\n"
+                   f"  Opmerking van de mens: {l['human_comment']}"
+                   + (f"\n  Daarna goedgekeurd: {l['approved_rationale']} ({'; '.join(l['approved_recipe'])})"
+                      if l.get("approved_recipe") else ""))
+    return "\n".join(out)
+
+
 def _context(ws: Workspace, issue_type: str, findings: list[dict], all_findings: list[dict],
-             feedback: list[dict], done: list[str]) -> str:
+             feedback: list[dict], done: list[str], lessons: list[dict] | None = None) -> str:
     others = sorted({f["issue_type"] for f in all_findings} - {issue_type})
     parts = [
         f"## Bevindingen van de pipeline voor {issue_type}\n{json.dumps(findings, indent=2, ensure_ascii=False)}",
@@ -93,6 +108,8 @@ def _context(ws: Workspace, issue_type: str, findings: list[dict], all_findings:
                      + ". Beperk je tot je eigen soort, maar houd er rekening mee.")
     if done:
         parts.append("## Al uitgevoerd op work\nEerdere recepten in deze sessie:\n" + "\n".join(done))
+    if text := _lessons(lessons or [], issue_type):
+        parts.append(text)
     if feedback:
         parts.append("## Feedback op eerdere pogingen\nEen eerder voorstel is afgewezen. Verwerk dit:\n"
                      + "\n".join(f"- poging {f['attempt']} ({f['source']}): {f['text']}" for f in feedback))
@@ -100,11 +117,11 @@ def _context(ws: Workspace, issue_type: str, findings: list[dict], all_findings:
 
 
 def heal_issue(client, route: llm.Route, ws: Workspace, issue_type: str, findings: list[dict],
-               all_findings: list[dict], feedback: list[dict], done: list[str]) -> dict:
+               all_findings: list[dict], feedback: list[dict], done: list[str], lessons: list[dict] | None = None) -> dict:
     """Diagnose en recept voor één soort bevinding. Past het recept bij 'repair' toe op de werkkopie."""
     usage = llm.Usage()
     guidance = (PROMPTS / f"{issue_type}.md").read_text()
-    context = _context(ws, issue_type, findings, all_findings, feedback, done)
+    context = _context(ws, issue_type, findings, all_findings, feedback, done, lessons)
     read_tools = {"run_sql": lambda a: ws.query(a["sql"])}
 
     diagnosis = run_agent(

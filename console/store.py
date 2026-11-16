@@ -116,6 +116,29 @@ class Store:
         return next((r for r in self.rules(only_active=True)
                      if r["signature"] == doc["signature"] and r["id"] not in tried), None)
 
+    def _lessons_for(self, doc: dict, limit: int = 5) -> list[dict]:
+        """Eerdere afkeuringen door een mens bij dezelfde soort fout, met wat er daarna wel is goedgekeurd."""
+        types, lessons = {f["issue_type"] for f in doc["findings"]}, []
+        for other in self.list():
+            if other["id"] == doc["id"] or not types & {f["issue_type"] for f in other["findings"]}:
+                continue
+            approved = other.get("proposal") if other.get("final_action") == "repair" and other["status"] in CLOSED else None
+            for fb in other["feedback"]:
+                if fb["source"] != "mens":
+                    continue
+                rejected = next((a["proposal"] for a in other["previous_attempts"] if a["attempt"] == fb["attempt"] and a.get("proposal")), None)
+                if rejected is None:
+                    continue
+                for fx in rejected["fixes"]:
+                    if fx["issue_type"] not in types:
+                        continue
+                    final = next((f for f in (approved or {}).get("fixes", []) if f["issue_type"] == fx["issue_type"]), None)
+                    lessons.append({"issue_type": fx["issue_type"], "rejected_recipe": fx["recipe_sql"],
+                                    "rejected_rationale": fx["rationale"], "human_comment": fb["text"],
+                                    "approved_recipe": final["recipe_sql"] if final else None,
+                                    "approved_rationale": final["rationale"] if final else None})
+        return lessons[:limit]
+
     def _count_rule(self, rule_id: str, field: str) -> None:
         for rule in self.rules():
             if rule["id"] == rule_id:
@@ -175,7 +198,8 @@ class Store:
             doc = self.get(incident_id)
             self._expect(doc, "detected")
             doc = self._save(doc, "investigating", "healer onderzoekt")
-            return {**doc, "rule": self._rule_for(doc)}  # de healer past een passende regel toe zonder agent
+            # De healer krijgt mee wat hij nodig heeft: een passende regel, en lessen uit eerdere besluiten.
+            return {**doc, "rule": self._rule_for(doc), "lessons": self._lessons_for(doc)}
 
     def fail(self, incident_id: str, detail: str) -> dict:
         with self.lock:
