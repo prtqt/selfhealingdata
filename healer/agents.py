@@ -39,6 +39,9 @@ SUBMIT_FIX = tool("submit_fix", "Levert het definitieve voorstel in.", {
                "description": "repair: het recept herstelt de batch. discard: de batch is niet te redden en moet opnieuw worden aangeleverd."},
     "recipe_sql": {**STR_LIST, "description": "Eén statement per element, alleen op tabellen in work. Leeg bij discard."},
     "rationale": {**STR, "description": "Waarom deze aanpak, en wat de mens die goedkeurt moet weten (bijvoorbeeld hoeveel rijen verdwijnen)."},
+    "business_summary": {**STR, "description": "Twee of drie zinnen voor een product owner zonder technische achtergrond: "
+                         "wat er mis was met de levering, wat de oplossing met de gegevens doet en of er iets verloren gaat. "
+                         "Geen tabel- of kolomnamen, geen SQL."},
 })
 
 
@@ -124,4 +127,5 @@ def heal_issue(client, route: llm.Route, ws: Workspace, issue_type: str, finding
         ws.run_recipe(recipe, commit=True)
     return {"issue_type": issue_type, "model": route.model, "root_cause": diagnosis["root_cause"],
             "evidence": diagnosis["evidence"], "confidence": diagnosis["confidence"], "action": fix["action"],
-            "recipe_sql": recipe, "rationale": fix["rationale"], "usage": usage.as_dict()}
+            "recipe_sql": recipe, "rationale": fix["rationale"],
+            "business_summary": fix.get("business_summary", ""), "usage": usage.as_dict()}

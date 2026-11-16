@@ -10,6 +10,7 @@
 </head>
 <body>
 <main>
+  {% include "_header.html" %}
   <p class="small"><a href="/">← Alle incidenten</a></p>
   <h1>{{ i.batch_id }} {{ m.badge(i.status) }}</h1>
   {{ m.meta_line(i) }}
@@ -55,6 +56,17 @@
   {% endif %}
 
   {{ m.incident_body(i) }}
+
+  <h2>Voor debuggen</h2>
+  <div class="card">
+    <dl>
+      <dt>Quarantainebundel</dt><dd><code>data/quarantine/{{ i.quarantine_path }}/</code></dd>
+      {% if i.proposal and i.proposal.candidate_path %}<dt>Kandidaat</dt><dd><code>data/candidates/{{ i.proposal.candidate_path }}/</code> (met <code>recipe.sql</code>)</dd>{% endif %}
+      <dt>API</dt><dd><code>GET /api/incidents/{{ i.id }}</code></dd>
+      <dt>Verbruik</dt><dd>{{ i.tokens }} tokens · ${{ "%.4f"|format(i.cost_usd) }} over alle pogingen</dd>
+    </dl>
+    <details style="margin-top:10px"><summary>Ruwe bevindingen (JSON)</summary><pre>{{ i.findings | tojson_pretty }}</pre></details>
+  </div>
 </main>
 </body>
 </html>

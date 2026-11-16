@@ -96,6 +96,10 @@
                 "type": "integer"
               }
             }
+          },
+          "business_summary": {
+            "type": "string",
+            "description": "Uitleg in gewone taal voor de product owner: wat is er gebeurd en wat doet de oplossing met de gegevens."
           }
         }
       }

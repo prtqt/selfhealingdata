@@ -1,0 +1,7 @@
+<div class="appbar">
+  <a class="brand" href="/">Self-healing data pipeline</a>
+  <nav class="switch" aria-label="Weergave">
+    <a href="{{ path }}?view=po" {% if view == "po" %}aria-current="true"{% endif %}>Product owner</a>
+    <a href="{{ path }}?view=dev" {% if view == "dev" %}aria-current="true"{% endif %}>Developer</a>
+  </nav>
+</div>

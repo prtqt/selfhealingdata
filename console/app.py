@@ -27,10 +27,88 @@ ISSUE_LABELS = {
     "referential_integrity": "Kapotte verwijzingen", "volume_anomaly": "Afwijkend volume", "schema_drift": "Schema drift",
 }
 
+# Dezelfde gegevens, twee lezers. De product owner krijgt gewone taal en het besluit;
+# de developer krijgt controles, SQL, modellen en tokens.
+PO_ISSUE_LABELS = {
+    "null_spike": "Ontbrekende gegevens", "duplicates": "Dubbele gegevens", "invalid_values": "Onmogelijke waarden",
+    "referential_integrity": "Losse verwijzingen", "volume_anomaly": "Onvolledige levering", "schema_drift": "Gewijzigd formaat",
+}
+PO_GROUPS = {"validated": "wait", "needs_human": "wait", "detected": "busy", "investigating": "busy", "proposed": "busy",
+             "approved": "processing", "resolved": "done", "discarded": "done"}
+PO_GROUP_LABELS = {"wait": "Wacht op jou", "busy": "Wordt onderzocht", "processing": "Wordt verwerkt", "done": "Afgehandeld"}
+TABLES_NL = {"orders": "bestellingen", "order_items": "orderregels", "order_payments": "betalingen",
+             "customers": "klanten", "products": "producten"}
+MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"]
+
+
+def nl_date(iso: str | None) -> str:
+    try:
+        y, m, d = (int(x) for x in iso[:10].split("-"))
+        return f"{d} {MONTHS[m - 1]} {y}"
+    except (TypeError, ValueError, IndexError):
+        return iso or ""
+
+
+def plain_finding(f: dict) -> str:
+    """Een bevinding in één zin zonder vaktaal."""
+    t, col = TABLES_NL.get(f["table_name"], f["table_name"]), f.get("column_name")
+    n, total, check = f["n_affected"], f["n_total"], f["check_name"]
+    if check == "required_not_null":
+        return f"Bij {n} van de {total} {t} ontbreekt een verplicht gegeven."
+    if check == "unique_key":
+        return f"{n} {t} zijn dubbel aangeleverd."
+    if check == "missing_column":
+        return f"Bij de {t} ontbreekt een gegeven dat we verwachten ({col})."
+    if check == "unexpected_column":
+        return f"Bij de {t} is een onbekend gegeven meegeleverd ({col})."
+    if check == "type_mismatch":
+        return f"Bij {n} van de {total} {t} staat een waarde in een onleesbaar formaat ({col})."
+    if check == "missing_table":
+        return f"De {t} zijn helemaal niet aangeleverd."
+    if check == "empty_table":
+        return f"Er zijn geen {t} aangeleverd."
+    if check == "row_count_deviation":
+        return f"Het aantal {t} ({n}) wijkt sterk af van wat normaal is."
+    if check.startswith("fk_"):
+        return f"{n} {t} verwijzen naar gegevens die niet zijn meegeleverd."
+    return f"{n} {t} hebben een waarde die niet kan kloppen: {f['details']}."
+
+
+def minutes_between(a: str, b: str) -> float:
+    from datetime import datetime
+    return (datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds() / 60
+
+
+def duration(minutes: float | None) -> str:
+    if minutes is None:
+        return "–"
+    if minutes < 90:
+        return f"{round(minutes)} min"
+    if minutes < 48 * 60:
+        return f"{minutes / 60:.1f} uur".replace(".", ",")
+    return f"{round(minutes / 1440)} dagen"
+
+
+def current_view(request: Request) -> str:
+    """?view= wint en wordt onthouden in een cookie; standaard de product-ownerweergave."""
+    chosen = request.query_params.get("view") or request.cookies.get("view")
+    return chosen if chosen in ("po", "dev") else "po"
+
+
+def page(request: Request, name: str, context: dict):
+    v = current_view(request)
+    response = templates.TemplateResponse(request, f"{name}_{v}.html", {**context, "view": v, "path": request.url.path, "static": False})
+    response.set_cookie("view", v, max_age=365 * 24 * 3600, samesite="lax")
+    return response
+
+
 app = FastAPI(title="Self-healing console")
 store = Store(STATE / "incidents.sqlite", int(os.environ.get("MAX_ATTEMPTS", "3")))
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-templates.env.globals.update(STATUS_LABELS=STATUS_LABELS, ISSUE_LABELS=ISSUE_LABELS)
+templates.env.globals.update(STATUS_LABELS=STATUS_LABELS, ISSUE_LABELS=ISSUE_LABELS, PO_ISSUE_LABELS=PO_ISSUE_LABELS,
+                             PO_GROUP_LABELS=PO_GROUP_LABELS, TABLES_NL=TABLES_NL)
+templates.env.filters["nl_date"] = nl_date
+templates.env.filters["duration"] = duration
 templates.env.filters["tojson_pretty"] = lambda v: json.dumps(v, indent=2, ensure_ascii=False)
 
 
@@ -130,35 +208,59 @@ def view(doc: dict) -> dict:
     types = sorted({f["issue_type"] for f in doc["findings"]})
     fixes = (doc.get("proposal") or {}).get("fixes", [])
     all_fixes = fixes + [fx for a in doc["previous_attempts"] if a.get("proposal") for fx in a["proposal"]["fixes"]]
+    usage = [fx.get("usage") or {} for fx in all_fixes]
+    v = doc.get("validation") or {}
+    changes = [{"table": TABLES_NL.get(t, t), "before": before, "after": v["row_counts_after"].get(t, 0)}
+               for t, before in v.get("row_counts_before", {}).items()] if v.get("row_counts_after") else []
+    closed = doc["status"] in CLOSED
     return {**doc, "types": types, "truth": chaos_truth(doc),
             "models": sorted({fx["model"] for fx in fixes}),
-            "cost_usd": round(sum((fx.get("usage") or {}).get("cost_usd", 0) for fx in all_fixes), 4)}
+            "cost_usd": round(sum(u.get("cost_usd", 0) for u in usage), 4),
+            "tokens": sum(u.get("input_tokens", 0) + u.get("output_tokens", 0) for u in usage),
+            # voor de product owner
+            "group": PO_GROUPS[doc["status"]],
+            "week": nl_date(doc.get("window_start")) if doc.get("window_start") else doc["batch_id"],
+            "plain_findings": [plain_finding(f) for f in doc["findings"]],
+            "changes": changes,
+            "rows_removed": sum(max(c["before"] - c["after"], 0) for c in changes),
+            "n_orders": doc.get("row_counts", {}).get("orders"),
+            "minutes_open": minutes_between(doc["created_at"], doc["updated_at"] if closed else now())}
 
 
 def summary(incidents: list[dict]) -> dict:
     counts = {s: 0 for s in STATUSES}
+    groups = {g: 0 for g in PO_GROUP_LABELS}
     for i in incidents:
         counts[i["status"]] += 1
+        groups[i["group"]] += 1
     scored = [i["truth"] for i in incidents if i["truth"] and not i["truth"]["organic"]]
-    return {"counts": counts, "total": len(incidents),
+    done = [i for i in incidents if i["status"] in CLOSED]
+    lead = sorted(i["minutes_open"] for i in done)
+    return {"counts": counts, "groups": groups, "total": len(incidents),
             "cost_usd": round(sum(i["cost_usd"] for i in incidents), 4),
+            "tokens": sum(i["tokens"] for i in incidents),
             "scored": len(scored),
             "detected_ok": sum(1 for t in scored if t["detected_ok"]),
-            "diagnosed_ok": sum(1 for t in scored if t["diagnosed_ok"])}
+            "diagnosed_ok": sum(1 for t in scored if t["diagnosed_ok"]),
+            # voor de product owner
+            "repaired": sum(1 for i in done if i.get("final_action") == "repair"),
+            "first_time_right": sum(1 for i in done if i.get("final_action") == "repair" and i["attempt"] == 1),
+            "median_lead": lead[len(lead) // 2] if lead else None,
+            "weeks_missing": [i["week"] for i in incidents if i["status"] not in CLOSED]}
 
 
 @app.get("/", response_class=HTMLResponse)
 def overview(request: Request, status: str = "", issue: str = ""):
     everything = [view(d) for d in store.list()]
     shown = [i for i in everything if (not status or i["status"] == status) and (not issue or issue in i["types"])]
-    return templates.TemplateResponse(request, "overview.html", {
-        "incidents": shown, "summary": summary(everything), "status": status, "issue": issue, "static": False})
+    return page(request, "overview", {"incidents": shown, "all": everything, "summary": summary(everything),
+                                      "status": status, "issue": issue})
 
 
 @app.get("/incidents/{incident_id}", response_class=HTMLResponse)
 def detail(request: Request, incident_id: str, error: str = ""):
     doc = guarded(store.get, incident_id)
-    return templates.TemplateResponse(request, "detail.html", {"i": view(doc), "error": error, "static": False})
+    return page(request, "detail", {"i": view(doc), "error": error})
 
 
 @app.post("/incidents/{incident_id}/decision")

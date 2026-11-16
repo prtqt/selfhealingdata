@@ -97,14 +97,27 @@ Zit er in één batch meer dan één soort fout, dan behandelt de healer ze na e
 
 ## De console
 
-- **Overzicht:** tellers per status, filter op soort fout, kosten van de agents.
-- **Per incident:** wat de pipeline vond, de diagnose met bewijs, het recept, de rijaantallen voor en na herstel, en de tijdlijn.
-- **Besluit:** goedkeuren, afkeuren met toelichting (de healer probeert het opnieuw met jouw tekst als feedback), de batch weggooien, of het origineel ongewijzigd vrijgeven.
-- **Na afloop** zie je wat de chaos-agent werkelijk deed en of detectie en diagnose klopten. De healer krijgt dat log nooit te zien.
+Eén console, twee weergaven. Je wisselt rechtsboven; de keuze wordt onthouden. Beide weergaven tonen dezelfde incidenten en hebben dezelfde besluitknoppen.
 
-![Een incident in de console, klaar voor goedkeuring](docs/console-incident.png)
+**Product owner** (standaard): gewone taal, geen SQL.
 
-Na drie mislukte pogingen (instelbaar met `MAX_ATTEMPTS`) krijgt het incident de status "Mens nodig".
+- Bovenaan staat wat op jouw besluit wacht, per week, met het voorstel en wat er aan gegevens vervalt.
+- Kerncijfers: weken die nu in de rapportage ontbreken, herstelde en niet-gebruikte leveringen, hoe vaak het eerste voorstel goed was, doorlooptijd en kosten van de AI.
+- Per levering: wat er aan de hand is, wat de AI voorstelt (een samenvatting die de agent speciaal voor deze lezer schrijft), wat er per soort gegeven verandert, en het besluit.
+
+![Overzicht voor de product owner](docs/console-product-owner.png)
+
+![Besluit nemen als product owner](docs/console-product-owner-besluit.png)
+
+**Developer**: alles om een voorstel te beoordelen en te debuggen.
+
+- Overzicht per batch met status, gefaalde controles, model, poging, tokens en kosten; filter op status en soort fout.
+- Per incident: de bevindingen per controle met voorbeeldsleutels, diagnose met bewijs, het SQL-recept, rijaantallen voor en na, de tijdlijn, paden naar de quarantainebundel en de kandidaat, en de ruwe JSON.
+- Na afloop: wat de chaos-agent werkelijk deed en of detectie en diagnose klopten. De healer krijgt dat log nooit te zien.
+
+![Overzicht voor de developer](docs/console-developer.png)
+
+In beide weergaven kun je goedkeuren, afkeuren met een opmerking (de healer probeert het opnieuw met jouw tekst als feedback), de levering laten vervallen, of hem ongewijzigd verwerken. Na drie mislukte pogingen (instelbaar met `MAX_ATTEMPTS`) is het aan een mens.
 
 ## Geheimen buiten de repo houden
 

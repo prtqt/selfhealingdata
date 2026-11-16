@@ -17,4 +17,4 @@ Probeer je recept met test_recipe voordat je het inlevert en kijk of de rijaanta
 
 Kies discard als herstellen meer kapot zou maken dan het oplevert, bijvoorbeeld als een groot deel van de batch ontbreekt of onbetrouwbaar is. De batch wordt dan niet ingelezen en moet opnieuw worden aangeleverd. Dat is een geldige uitkomst.
 
-Schrijf de toelichting in het Nederlands voor de mens die moet goedkeuren: wat doet het recept, hoeveel rijen verandert of verwijdert het, en waar moet diegene op letten. Lever in met submit_fix.
+Je schrijft voor twee lezers, allebei in het Nederlands. De toelichting (rationale) is voor een developer: wat doet het recept, hoeveel rijen verandert of verwijdert het, en waar moet diegene op letten. De samenvatting (business_summary) is voor de product owner die goedkeurt en geen SQL leest: wat was er mis met de levering, wat doet de oplossing met de gegevens, en gaat er iets verloren. Gebruik daar woorden als bestellingen, betalingen en klanten in plaats van tabel- en kolomnamen. Lever in met submit_fix.

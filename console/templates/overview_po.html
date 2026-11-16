@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="20">
+  <title>Self-healing console</title>
+  {% include "_style.html" %}
+</head>
+<body>
+<main>
+  {% include "_header.html" %}
+  {% set s = summary %}
+  {% set waiting = all | selectattr("group", "equalto", "wait") | list %}
+  {% set busy = all | selectattr("group", "in", ["busy", "processing"]) | list %}
+  {% set done = all | selectattr("group", "equalto", "done") | list %}
+
+  {% if waiting %}
+  <h1 class="hero">{{ waiting | length }} {{ "levering wacht" if waiting | length == 1 else "leveringen wachten" }} op jouw besluit</h1>
+  <p class="lede muted">Zolang je niet beslist, ontbreken deze weken in de rapportage.</p>
+  {% else %}
+  <h1 class="hero">Niets wacht op jou</h1>
+  <p class="lede muted">{% if busy %}{{ busy | length }} {{ "levering wordt" if busy | length == 1 else "leveringen worden" }} nog onderzocht of verwerkt.{% else %}Alle leveringen zijn verwerkt.{% endif %}</p>
+  {% endif %}
+
+  {% if waiting %}
+  <div class="grid" style="margin-top:18px">
+    {% for i in waiting %}
+    <div class="card todo {{ 'urgent' if i.status == 'needs_human' }}">
+      <h3>Week van {{ i.week }}</h3>
+      <p>{% for t in i.types %}<span class="tag">{{ PO_ISSUE_LABELS[t] }}</span>{% endfor %}</p>
+      {% if i.status == "needs_human" %}
+      <p>De automatische oplossing is niet gelukt. Jij bepaalt wat er met deze levering gebeurt.</p>
+      {% elif i.proposal.action == "discard" %}
+      <p>Voorstel: deze levering <b>niet gebruiken</b> en opnieuw laten aanleveren.</p>
+      {% else %}
+      <p>Voorstel: de levering <b>herstellen</b>{% if i.rows_removed %}; daarbij vervallen {{ i.rows_removed }} regels{% else %} zonder verlies van gegevens{% endif %}.</p>
+      {% endif %}
+      <p class="muted small">Wacht {{ i.minutes_open | duration }}{% if i.n_orders %} · {{ i.n_orders }} bestellingen in deze levering{% endif %}</p>
+      <a class="btn" href="/incidents/{{ i.id }}">Bekijken en beslissen</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>Hoe staat het ervoor</h2>
+  <div class="kpis">
+    <div class="kpi"><b>{{ s.weeks_missing | length }}</b><span>weken ontbreken nu in de rapportage</span></div>
+    <div class="kpi"><b>{{ s.repaired }}</b><span>hersteld en verwerkt</span></div>
+    <div class="kpi"><b>{{ s.counts.discarded }}</b><span>niet gebruikt</span></div>
+    <div class="kpi"><b>{{ s.first_time_right }}/{{ s.repaired }}</b><span>hersteld bij het eerste voorstel</span></div>
+    <div class="kpi"><b>{{ s.median_lead | duration }}</b><span>van melding tot afhandeling (mediaan)</span></div>
+    <div class="kpi"><b>${{ "%.2f"|format(s.cost_usd) }}</b><span>kosten van de AI-agents</span></div>
+  </div>
+
+  {% if busy %}
+  <h2>Wordt aan gewerkt</h2>
+  <div class="card scroll"><table>
+    <tr><th>Week van</th><th>Wat is er mis</th><th>Stand</th><th>Sinds</th></tr>
+    {% for i in busy %}
+    <tr><td><a href="/incidents/{{ i.id }}">{{ i.week }}</a></td>
+        <td>{% for t in i.types %}<span class="tag">{{ PO_ISSUE_LABELS[t] }}</span>{% endfor %}</td>
+        <td><span class="badge g-{{ i.group }}">{{ PO_GROUP_LABELS[i.group] }}</span>{% if i.attempt > 1 %} <span class="muted small">poging {{ i.attempt }}</span>{% endif %}</td>
+        <td class="muted">{{ i.minutes_open | duration }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+
+  <h2>Afgehandeld</h2>
+  <div class="card scroll">
+    {% if done %}
+    <table>
+      <tr><th>Week van</th><th>Wat was er mis</th><th>Uitkomst</th><th>Besloten door</th><th>Doorlooptijd</th></tr>
+      {% for i in done %}
+      <tr><td><a href="/incidents/{{ i.id }}">{{ i.week }}</a></td>
+          <td>{% for t in i.types %}<span class="tag">{{ PO_ISSUE_LABELS[t] }}</span>{% endfor %}</td>
+          <td>{% if i.final_action == "repair" %}<span class="ok">Hersteld en verwerkt</span>{% elif i.final_action == "discard" %}Niet gebruikt{% else %}<span class="warn">Ongewijzigd verwerkt</span>{% endif %}</td>
+          <td>{{ i.decision.decided_by if i.decision else "–" }}</td>
+          <td class="muted">{{ i.minutes_open | duration }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">Nog niets afgehandeld.</p>{% endif %}
+  </div>
+
+  <p class="muted small" style="margin-top:24px"><a href="/export">Rapport exporteren</a> · Technische details staan in de weergave Developer.</p>
+</main>
+</body>
+</html>

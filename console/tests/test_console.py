@@ -14,7 +14,8 @@ INCIDENT = {"batch_id": "batch_1", "quarantine_path": "batch_1", "row_counts": {
 FIX = {"issue_type": "duplicates", "model": "claude-haiku-5-5", "root_cause": "export draaide twee keer",
        "evidence": ["5 sleutels dubbel"], "confidence": "high", "action": "repair",
        "recipe_sql": ["create or replace table work.orders as select distinct * from work.orders"],
-       "rationale": "exacte kopieën verwijderen", "usage": {"input_tokens": 10, "output_tokens": 5, "cost_usd": 0.01, "turns": 2}}
+       "rationale": "exacte kopieën verwijderen",
+       "business_summary": "Een deel van de bestellingen is twee keer aangeleverd; de kopieën worden verwijderd.", "usage": {"input_tokens": 10, "output_tokens": 5, "cost_usd": 0.01, "turns": 2}}
 PROPOSAL = {"action": "repair", "summary": "duplicaten verwijderd", "candidate_path": "inc-a1", "fixes": [FIX]}
 PASSED = {"passed": True, "remaining_findings": [], "row_counts_before": {"orders": 100}, "row_counts_after": {"orders": 95}}
 FAILED = {"passed": False, "remaining_findings": [FINDING], "row_counts_before": {"orders": 100}, "row_counts_after": {"orders": 100}}
@@ -50,6 +51,7 @@ def to_validated(client):
 
 def test_happy_path_and_pages(client):
     inc = to_validated(client)
+    client.get("/?view=dev")  # kiest de developer-weergave en onthoudt die in een cookie
     assert "Goedkeuren" in client.get(f"/incidents/{inc}").text
     assert "chaos-agent werkelijk" not in client.get(f"/incidents/{inc}").text  # waarheid pas na afloop
 
@@ -110,3 +112,34 @@ def test_human_can_override_before_any_proposal(client):
     inc = post(client, "", INCIDENT)["id"]
     doc = post(client, f"/{inc}/decision", {"decision": "release_original"})
     assert doc["final_action"] == "release_original"
+
+
+def test_product_owner_and_developer_see_different_pages(client):
+    inc = to_validated(client)
+    po = client.get(f"/incidents/{inc}").text            # standaard: product owner
+    assert "Goedkeuren" in po and "twee keer aangeleverd" in po and "5 bestellingen zijn dubbel aangeleverd" in po
+    assert "Bestellingen" in po and "100 → <b>95</b>" in po
+    for jargon in ("create or replace", "unique_key", "claude-haiku", "tokens", "orders.order_id"):
+        assert jargon not in po, jargon
+
+    dev = client.get(f"/incidents/{inc}?view=dev").text
+    for detail in ("create or replace table work.orders", "unique_key", "claude-haiku-5-5", "data/quarantine/batch_1/", "Goedkeuren"):
+        assert detail in dev, detail
+    assert "twee keer aangeleverd" not in dev
+
+    assert "create or replace" in client.get(f"/incidents/{inc}").text       # keuze is onthouden
+    assert "create or replace" not in client.get(f"/incidents/{inc}?view=po").text
+
+
+def test_overviews_per_audience(client):
+    inc = to_validated(client)
+    po = client.get("/?view=po").text
+    assert "1 levering wacht op jouw besluit" in po and "Bekijken en beslissen" in po and "Dubbele gegevens" in po
+    assert "zonder verlies" not in po and "vervallen 5 regels" in po
+    dev = client.get("/?view=dev").text
+    assert "orders.unique_key" in dev and inc in dev and "tokens" in dev
+
+    post(client, f"/{inc}/decision", {"decision": "approve", "decided_by": "Pieter"})
+    post(client, f"/{inc}/resolution", {"outcome": "released", "detail": "ok"})
+    po = client.get("/?view=po").text
+    assert "Niets wacht op jou" in po and "Hersteld en verwerkt" in po and "1/1" in po and "Pieter" in po

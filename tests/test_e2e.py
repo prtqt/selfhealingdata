@@ -120,7 +120,7 @@ def test_duplicate_batch_is_healed_approved_and_released(stack, batches):
     assert incident(stack, "resolved")["resolution"]["outcome"] == "released"
     assert orders_in_marts(stack) == (clean_orders, clean_orders)  # gelijk aan een run zonder chaos
 
-    page = requests.get(f"{stack.url}/incidents/{inc['id']}").text
+    page = requests.get(f"{stack.url}/incidents/{inc['id']}", params={"view": "dev"}).text
     assert "Detectie: <b class=\"ok\">juist" in page and "claude-haiku-5-5" in page
 
 

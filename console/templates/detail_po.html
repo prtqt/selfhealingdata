@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if i.group in ("busy", "processing") %}<meta http-equiv="refresh" content="10">{% endif %}
+  <title>Week van {{ i.week }} · Self-healing console</title>
+  {% include "_style.html" %}
+</head>
+<body>
+<main>
+  {% include "_header.html" %}
+  <p class="small"><a href="/">← Overzicht</a></p>
+  <h1>Levering week van {{ i.week }} <span class="badge g-{{ i.group }}">{{ PO_GROUP_LABELS[i.group] }}</span></h1>
+  <p class="muted">{% if i.n_orders %}{{ i.n_orders }} bestellingen · {% endif %}{% if i.group == "done" %}afgehandeld in {{ i.minutes_open | duration }}{% else %}open sinds {{ i.minutes_open | duration }}{% endif %}</p>
+
+  {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+
+  {% if i.group != "done" %}
+  <div class="card"><b>Gevolg nu:</b> deze week zit niet in de rapportage tot de levering is afgehandeld. De andere weken zijn niet geraakt.</div>
+  {% endif %}
+
+  <h2>Wat is er aan de hand</h2>
+  <div class="card">
+    <ul class="plain">{% for line in i.plain_findings %}<li>{{ line }}</li>{% endfor %}</ul>
+  </div>
+
+  {% if i.proposal %}
+  <h2>Wat stelt de AI voor</h2>
+  {% for fx in i.proposal.fixes %}
+  <div class="card">
+    <h3>{{ PO_ISSUE_LABELS[fx.issue_type] }}: {{ "herstellen" if fx.action == "repair" else "levering niet gebruiken" }}</h3>
+    <p>{{ fx.business_summary or (fx.root_cause ~ " " ~ fx.rationale) }}</p>
+    <p class="muted small">Zekerheid van de diagnose: {{ {"low": "laag", "medium": "redelijk", "high": "hoog"}[fx.confidence] }}</p>
+  </div>
+  {% endfor %}
+  {% elif i.group == "busy" %}
+  <h2>Wat stelt de AI voor</h2>
+  <div class="card"><p class="muted">Nog geen voorstel. De oorzaak wordt onderzocht{% if i.attempt > 1 %} (poging {{ i.attempt }} van {{ i.max_attempts }}){% endif %}.</p></div>
+  {% endif %}
+
+  {% if i.validation and i.status == "validated" or i.group == "done" and i.validation %}
+  <h2>Wat verandert er aan de gegevens</h2>
+  <div class="card">
+    {% if i.changes %}
+    {% for c in i.changes %}
+    <div class="change"><span>{{ c.table | capitalize }}</span>
+      <span>{% if c.after == c.before %}<span class="muted">{{ c.before }}, ongewijzigd</span>{% else %}{{ c.before }} → <b>{{ c.after }}</b> <span class="warn">({{ "%+d"|format(c.after - c.before) }})</span>{% endif %}</span></div>
+    {% endfor %}
+    <p class="ok" style="margin-bottom:0"><b>Gecontroleerd:</b> de herstelde levering voldoet weer aan alle kwaliteitsregels.</p>
+    {% else %}
+    <p style="margin:0">De levering wordt niet ingelezen. Deze week blijft leeg in de rapportage tot er een nieuwe levering komt.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if i.feedback %}
+  <h2>Eerdere pogingen</h2>
+  <div class="card"><ul class="plain">{% for f in i.feedback %}<li>Poging {{ f.attempt }}: {% if f.source == "mens" %}afgekeurd met de opmerking “{{ f.text }}”{% elif f.source == "validatie" %}het voorstel doorstond de kwaliteitscontrole niet{% else %}het onderzoek is niet gelukt{% endif %}.</li>{% endfor %}</ul></div>
+  {% endif %}
+
+  {% if i.group == "wait" or i.group == "busy" %}
+  <form class="card decide" method="post" action="/incidents/{{ i.id }}/decision">
+    {% if i.status == "validated" %}
+    <h3>Jouw besluit</h3>
+    <p>{% if i.proposal.action == "repair" %}Keur je goed, dan wordt de herstelde levering verwerkt en staat deze week binnen een paar minuten in de rapportage.{% else %}Keur je goed, dan wordt deze levering niet gebruikt.{% endif %} Keur je af, dan maakt de AI een nieuw voorstel op basis van je opmerking.</p>
+    {% elif i.status == "needs_human" %}
+    <h3>Jij beslist</h3>
+    <p>Na {{ i.max_attempts }} pogingen is er geen bruikbaar voorstel. Je kunt de levering laten vervallen, of hem ongewijzigd verwerken als de afwijking volgens jou klopt met de werkelijkheid.</p>
+    {% else %}
+    <h3>Niet wachten?</h3>
+    <p class="muted">Het onderzoek loopt nog. Je kunt de levering ook nu zelf afhandelen.</p>
+    {% endif %}
+    <label for="comment">Opmerking{% if i.status == "validated" %} (verplicht bij afkeuren: wat moet er anders?){% endif %}</label>
+    <textarea id="comment" name="comment"></textarea>
+    <label for="decided_by">Je naam</label>
+    <input type="text" id="decided_by" name="decided_by" autocomplete="name">
+    <div class="buttons">
+      {% if i.status == "validated" %}
+      <button class="primary" name="decision" value="approve">Goedkeuren</button>
+      <button name="decision" value="reject">Afkeuren, nieuw voorstel</button>
+      {% endif %}
+    </div>
+    <details style="margin-top:14px" {{ "open" if i.status != "validated" }}>
+      <summary>Andere mogelijkheden</summary>
+      <div class="buttons">
+        {% if not (i.status == "validated" and i.proposal.action == "discard") %}
+        <button class="danger" name="decision" value="discard" onclick="return confirm('Deze levering wordt niet gebruikt. Doorgaan?')">Levering niet gebruiken</button>
+        {% endif %}
+        <button class="danger" name="decision" value="release_original" onclick="return confirm('De levering wordt verwerkt zoals hij is aangeleverd, met de afwijkingen erin. Doorgaan?')">Ongewijzigd verwerken</button>
+      </div>
+    </details>
+  </form>
+  {% elif i.status == "approved" %}
+  <div class="card"><p style="margin:0">Besluit genomen{% if i.decision %} door {{ i.decision.decided_by }}{% endif %}. Het wordt binnen een minuut uitgevoerd.</p></div>
+  {% else %}
+  <h2>Afloop</h2>
+  <div class="card"><p style="margin:0">
+    {% if i.final_action == "repair" %}<b class="ok">Hersteld en verwerkt.</b> Deze week staat in de rapportage.
+    {% elif i.final_action == "discard" %}<b>Niet gebruikt.</b> Deze week ontbreekt in de rapportage tot er een nieuwe levering komt.
+    {% else %}<b class="warn">Ongewijzigd verwerkt.</b> Deze week staat in de rapportage, met de afwijkingen erin.{% endif %}
+    {% if i.decision %} Besloten door {{ i.decision.decided_by }}{% if i.decision.comment %}: “{{ i.decision.comment }}”{% endif %}.{% endif %}
+  </p></div>
+  {% endif %}
+
+  <p class="muted small" style="margin-top:24px"><a href="{{ path }}?view=dev">Technische details bekijken</a> (controles, SQL, model en kosten)</p>
+</main>
+</body>
+</html>
