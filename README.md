@@ -139,10 +139,24 @@ python -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.
 make test
 ```
 
-De tests draaien zonder Docker en zonder Claude. Elk component heeft eigen tests in zijn map. In `tests/` staan de tests over de componenten heen:
+De tests draaien zonder Docker en zonder Claude. Elk component heeft eigen tests in zijn map. Het uitbreidingsplan staat in [`docs/ROADMAP.md`](docs/ROADMAP.md). In `tests/` staan de tests over de componenten heen:
 
 - `test_detection.py`: elke verstoring van chaos wordt door het bijbehorende dbt-model gevangen, en schone batches geven geen bevindingen.
 - `test_e2e.py`: de hele lus met een echte console-server en een nagespeeld Claude-model, tot en met gelijke rijaantallen in de marts als bij een run zonder chaos.
+
+## Meten hoe goed de agents zijn
+
+```bash
+make eval
+```
+
+Het evaluatieharnas in `evals/` verstoort een schone batch met elke variant van chaos, laat de healer hem herstellen en vergelijkt de kandidaat rij voor rij met de schone batch. Het rapport (`evals/results/`) toont per soort fout en per model: gedetecteerd, hersteld (kandidaat doorstaat de poort), weggegooid, het aandeel schone rijen dat terugkwam en de kosten.
+
+- Modellen of prompts vergelijken: `make eval ARGS="--routing ander_routing.yml --label alles-op-haiku"`.
+- Meer herhalingen: `ARGS="--seeds 3"`. Eén soort: `ARGS="--types schema_drift"`.
+- Zonder Claude: `ARGS="--baseline"` draait vaste regels (duplicaten verwijderen, de rest weggooien) als ondergrens.
+
+Een volledige run met Claude kost API-tegoed: 13 gevallen per seed, elk met een investigator en een fixer.
 
 ## Beperkingen
 
