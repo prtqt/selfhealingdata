@@ -76,6 +76,8 @@ services:
     user: *user
     environment:
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+      CONSOLE_PUBLIC_URL: ${CONSOLE_PUBLIC_URL:-http://localhost:8000}
     ports: ["8000:8000"]
     volumes:
       - ./data/console:/state

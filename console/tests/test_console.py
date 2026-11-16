@@ -229,3 +229,27 @@ def test_policy_auto_approves_only_within_its_limits(client):
     discard = run("b_discard", proposal={**PROPOSAL, "action": "discard", "candidate_path": None},
                   validation={**PASSED, "row_counts_after": {}})
     assert [d["status"] for d in (too_many, unsure, other, discard)] == ["validated"] * 4
+
+
+def test_webhook_is_called_when_a_human_is_needed(client, monkeypatch):
+    import app, notify
+    sent = []
+    monkeypatch.setattr(app, "NOTIFY_WEBHOOK_URL", "http://hook.invalid/x")
+    monkeypatch.setattr(notify, "send", lambda url, text: sent.append((url, text)))
+    inc = post(client, "", {**INCIDENT, "window_start": "2017-03-06",
+                           "impact": {"orders": 9, "revenue": 48250.4, "affected_rows": 5, "waiting_reports": []}})["id"]
+    post(client, f"/{inc}/claim"); post(client, f"/{inc}/proposal", PROPOSAL)
+    assert sent == []                                                 # alleen als een mens aan zet is
+    post(client, f"/{inc}/validation", PASSED)
+    assert len(sent) == 1 and sent[0][0] == "http://hook.invalid/x"
+    assert sent[0][1] == (f"Levering week van 6 maart 2017 (R$ 48.250 omzet) wacht op je besluit. "
+                          f"Probleem: dubbele gegevens. http://localhost:8000/incidents/{inc}")
+    post(client, f"/{inc}/decision", {"decision": "approve"})
+    assert len(sent) == 1
+
+
+def test_unreachable_webhook_does_not_block(client):
+    import notify, time
+    started = time.time()
+    notify.send("http://127.0.0.1:9/dood", "x")
+    assert time.time() - started < 0.5

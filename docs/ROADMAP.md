@@ -8,7 +8,7 @@ Tien uitbreidingen, in de volgorde waarin ze gebouwd worden. Elke stap is los op
 | 2 | Blijvende herstelregels | console, healer | Een goedgekeurd recept kan als regel worden bewaard. Bij een incident met dezelfde bevindingen past de healer het recept toe zonder Claude; de poort controleert, daarna gaat het zonder mens door. Faalt de regel, dan neemt de agent het over. | klaar |
 | 3 | Zakelijke impact | pipeline, console | De pipeline rekent bij quarantaine uit hoeveel bestellingen en omzet in de batch zitten en welke rapporten wachten. De product owner sorteert op impact. | klaar |
 | 4 | Automatisch goedkeuren binnen grenzen | console | Beleid dat de product owner instelt: welke soorten fouten, minimale zekerheid, maximaal rijverlies. Elk automatisch besluit staat in de tijdlijn. | klaar |
-| 5 | Meldingen | console | Webhook (Slack-formaat) zodra iets op een besluit wacht of de healer er niet uitkomt. | gepland |
+| 5 | Meldingen | console | Webhook (Slack-formaat) zodra iets op een besluit wacht of de healer er niet uitkomt. | klaar |
 | 6 | Login en rollen | console, pipeline, healer | Gebruikers met rol product owner of developer; alleen de product owner beslist. Diensten gebruiken een API-token. Uit als er niets is ingesteld. | gepland |
 | 7 | Quarantaine per bestelling | pipeline, console | Bestellingen zonder bevinding gaan alvast door als de rest van de batch de poort haalt; alleen de geraakte bestellingen wachten. | gepland |
 | 8 | Leren van afkeuringen | console, healer | De console geeft per soort fout eerdere afkeuringen met de opmerking en het uiteindelijk goedgekeurde recept; de healer krijgt die mee als context. | gepland |

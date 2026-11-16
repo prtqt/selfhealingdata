@@ -121,6 +121,8 @@ Eén console, twee weergaven. Je wisselt rechtsboven; de keuze wordt onthouden. 
 
 **Automatisch goedkeuren.** Onder "Regels en beleid" stelt de product owner in welke voorstellen zonder mens door mogen: welke soorten fouten, welke minimale zekerheid en hoeveel procent van de regels hoogstens mag vervallen. Standaard staat dit uit. Een voorstel om een levering weg te gooien gaat nooit automatisch door.
 
+**Meldingen.** Zet `NOTIFY_WEBHOOK_URL` in `.env` op een Slack-webhook (of iets dat `{"text": ...}` accepteert) en je krijgt een bericht met link zodra een levering op een besluit wacht of de healer er niet uitkomt.
+
 In beide weergaven kun je goedkeuren, afkeuren met een opmerking (de healer probeert het opnieuw met jouw tekst als feedback), de levering laten vervallen, of hem ongewijzigd verwerken. Na drie mislukte pogingen (instelbaar met `MAX_ATTEMPTS`) is het aan een mens.
 
 ## Geheimen buiten de repo houden

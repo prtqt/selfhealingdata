@@ -10,6 +10,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+import notify
 from store import CLOSED, STATUSES, Conflict, NotFound, Store, now
 
 CONTRACTS = Path(os.environ.get("CONTRACTS_DIR", "/contracts"))
@@ -209,6 +210,21 @@ def list_rules():
 
 
 # ---------------------------------------------------------------- weergave
+
+NOTIFY_WEBHOOK_URL = os.environ.get("NOTIFY_WEBHOOK_URL", "")
+PUBLIC_URL = os.environ.get("CONSOLE_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+
+
+def notify_humans(doc: dict) -> None:
+    if not NOTIFY_WEBHOOK_URL:
+        return
+    week = nl_date(doc.get("window_start")) if doc.get("window_start") else doc["batch_id"]
+    if text := notify.message(doc, PO_ISSUE_LABELS, PUBLIC_URL, week):
+        notify.send(NOTIFY_WEBHOOK_URL, text)
+
+
+store.on_change = notify_humans
+
 
 def chaos_truth(doc: dict) -> dict | None:
     """Wat de chaos-agent werkelijk deed. Pas zichtbaar als het incident is afgesloten."""

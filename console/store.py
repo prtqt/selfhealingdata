@@ -52,6 +52,7 @@ class Store:
         self.db.execute("create table if not exists settings (key text primary key, doc text)")
         self.lock = threading.Lock()
         self.max_attempts = max_attempts
+        self.on_change = lambda doc: None  # de app hangt hier meldingen aan
 
     # ------------------------------------------------------------ lezen
 
@@ -138,6 +139,7 @@ class Store:
             "insert or replace into incidents values (?, ?, ?, ?, ?, ?)",
             [doc["id"], doc["batch_id"], status, doc["created_at"], doc["updated_at"], json.dumps(doc)])
         self.db.commit()
+        self.on_change(doc)
         return doc
 
     def _expect(self, doc: dict, *allowed: str) -> None:
