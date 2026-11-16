@@ -1,8 +1,19 @@
-data/
+# Geheimen: nooit committen. Alleen .env.example (zonder waarden) hoort in de repo.
 .env
+.env.*
+!.env.example
+kaggle.json
+.kaggle/
+*.pem
+*.key
+*.crt
+
+# Lokale data en bouwresten
+data/
 __pycache__/
 .pytest_cache/
 *.duckdb
+*.sqlite*
 target/
 logs/
 .venv/

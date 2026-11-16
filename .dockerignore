@@ -1,0 +1,12 @@
+# De build context is de repo-root; geheimen en lokale data mogen nooit in een image belanden.
+.env
+.env.*
+kaggle.json
+.kaggle/
+*.pem
+*.key
+*.crt
+data/
+.git/
+.venv/
+**/__pycache__/
