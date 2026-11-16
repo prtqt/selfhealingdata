@@ -1,0 +1,13 @@
+# Alles wat nodig is om de tests buiten Docker te draaien.
+duckdb==2.0.0
+dbt-duckdb==1.11.1
+pyyaml
+requests
+fastapi
+uvicorn
+jinja2
+python-multipart
+jsonschema
+httpx
+anthropic>=2.9,<3
+pytest

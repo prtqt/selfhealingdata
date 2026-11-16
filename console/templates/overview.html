@@ -1,0 +1,65 @@
+{% import "_incident.html" as m %}
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="15">
+  <title>Self-healing console</title>
+  {% include "_style.html" %}
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <div>
+      <h1>Incidenten</h1>
+      <p class="muted">Fouten in aangeleverde batches, de voorgestelde oplossingen en jouw besluit.</p>
+    </div>
+    <a href="/export">Rapport exporteren</a>
+  </div>
+
+  {% set s = summary %}
+  <div class="counters">
+    <a class="counter {{ 'active' if not status }}" href="/"><b>{{ s.total }}</b><span>Alle</span></a>
+    {% for key in ["validated", "needs_human", "detected", "investigating", "proposed", "approved", "resolved", "discarded"] %}
+    <a class="counter {{ 'active' if status == key }}" href="/?status={{ key }}"><b>{{ s.counts[key] }}</b><span>{{ STATUS_LABELS[key] }}</span></a>
+    {% endfor %}
+  </div>
+
+  <form class="filters" method="get">
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    <label for="issue" class="muted small">Soort fout</label>
+    <select id="issue" name="issue" onchange="this.form.submit()">
+      <option value="">Alle</option>
+      {% for key, label in ISSUE_LABELS.items() %}<option value="{{ key }}" {{ 'selected' if issue == key }}>{{ label }}</option>{% endfor %}
+    </select>
+    <span class="spacer"></span>
+    <span class="muted small">
+      {% if s.scored %}Vergeleken met chaos-log: detectie {{ s.detected_ok }}/{{ s.scored }}, diagnose {{ s.diagnosed_ok }}/{{ s.scored }} · {% endif %}
+      Kosten agents: ${{ "%.4f"|format(s.cost_usd) }}
+    </span>
+  </form>
+
+  <div class="card scroll">
+    {% if incidents %}
+    <table>
+      <tr><th>Batch</th><th>Status</th><th>Soort fout</th><th>Tabellen</th><th>Model</th><th class="num">Poging</th><th>Laatst gewijzigd</th></tr>
+      {% for i in incidents %}
+      <tr>
+        <td><a href="/incidents/{{ i.id }}">{{ i.batch_id }}</a></td>
+        <td>{{ m.badge(i.status) }}</td>
+        <td>{% for t in i.types %}<span class="tag">{{ ISSUE_LABELS[t] }}</span>{% endfor %}</td>
+        <td class="small"><code>{{ i.findings | map(attribute="table_name") | unique | join(", ") }}</code></td>
+        <td class="small">{{ i.models | join(", ") or "–" }}</td>
+        <td class="num">{{ i.attempt }}/{{ i.max_attempts }}</td>
+        <td class="muted small">{{ i.updated_at[:19] | replace("T", " ") }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">{{ "Geen incidenten met dit filter." if status or issue else "Nog geen incidenten. Zodra de pipeline een batch in quarantaine zet, verschijnt die hier." }}</p>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

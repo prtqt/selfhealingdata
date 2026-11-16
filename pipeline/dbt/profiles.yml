@@ -1,0 +1,13 @@
+selfhealing:
+  target: warehouse
+  outputs:
+    warehouse:
+      type: duckdb
+      path: "{{ env_var('WAREHOUSE_PATH', 'warehouse.duckdb') }}"
+      schema: main
+      threads: 1
+    gate:
+      type: duckdb
+      path: "{{ env_var('GATE_DB_PATH', 'gate.duckdb') }}"
+      schema: main
+      threads: 1

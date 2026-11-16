@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decision (mens -> console)",
+  "type": "object",
+  "properties": {
+    "decision": {
+      "enum": [
+        "approve",
+        "reject",
+        "discard",
+        "release_original"
+      ]
+    },
+    "comment": {
+      "type": "string"
+    },
+    "decided_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision"
+  ],
+  "additionalProperties": false
+}

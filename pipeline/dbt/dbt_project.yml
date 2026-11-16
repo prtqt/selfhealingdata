@@ -1,0 +1,28 @@
+name: selfhealing
+version: "1.0"
+profile: selfhealing
+model-paths: [models]
+macro-paths: [macros]
+
+vars:
+  contract: {}            # wordt door de pipeline gevuld vanuit contracts/landing_schema.yml
+  null_threshold: 0.01    # aandeel lege verplichte waarden dat nog geen spike is
+  type_threshold: 0.01    # aandeel niet te casten waarden dat nog geen drift is
+  volume_low: 0.4         # rijen t.o.v. mediaan van recente batches
+  volume_high: 3.0
+  volume_min_history: 3
+
+models:
+  selfhealing:
+    quality:
+      +tags: [gate]
+      +schema: dq
+      +materialized: table
+    staging:
+      +tags: [warehouse]
+      +schema: staging
+      +materialized: view
+    marts:
+      +tags: [warehouse]
+      +schema: marts
+      +materialized: table

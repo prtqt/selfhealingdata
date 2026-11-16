@@ -1,0 +1,17 @@
+# Welk Claude-model welk soort fout behandelt. Aanpasbaar zonder code te wijzigen.
+#   effort     hoe diep het model nadenkt: low | medium | high | xhigh | max
+#   max_turns  maximum aantal stappen per agent (investigator en fixer elk)
+#   fallbacks  bij een weigering door een veiligheidsfilter neemt een ander model over (niet op Haiku)
+routes:
+  null_spike:            {model: claude-haiku-5-5,  effort: medium, max_turns: 12}
+  duplicates:            {model: claude-haiku-5-5,  effort: medium, max_turns: 12}
+  invalid_values:        {model: claude-sonnet-5-5, effort: medium, max_turns: 15, fallbacks: true}
+  referential_integrity: {model: claude-sonnet-5-5, effort: medium, max_turns: 15, fallbacks: true}
+  volume_anomaly:        {model: claude-sonnet-5-5, effort: medium, max_turns: 12, fallbacks: true}
+  schema_drift:          {model: claude-opus-5-5,   effort: high,   max_turns: 20, fallbacks: true}
+
+# Prijs in dollars per miljoen tokens [invoer, uitvoer], voor de kostenschatting in de console.
+prices_per_mtok:
+  claude-haiku-5-5:  [0.10, 0.50]
+  claude-sonnet-5-5: [2.00, 10.00]
+  claude-opus-5-5:   [4.00, 20.00]

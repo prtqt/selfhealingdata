@@ -1,0 +1,96 @@
+# Vijf componenten, elk met eigen image en eigen mappen. Profielen:
+#   core     source + pipeline              (schone flow, quarantaine op schijf)
+#   chaos    + chaos-agent tussen source en pipeline
+#   console  + incidentregister en goedkeuringsscherm
+#   healer   + Claude-agents
+#   all      alles
+# Mappen onder ./data hebben elk één schrijver; lezers krijgen ze read-only.
+x-user: &user "${HOST_UID:-1000}:0"
+
+services:
+  source:
+    profiles: [core, all]
+    build: {context: ., dockerfile: source/Dockerfile}
+    user: *user
+    environment:
+      HOME: /tmp
+      DATASET: ${DATASET:-kaggle}
+      START_DATE: ${START_DATE:-2017-02-06}
+      MAX_BATCHES: ${MAX_BATCHES:-0}
+      FEED_INTERVAL: ${FEED_INTERVAL:-120}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
+    volumes:
+      - ./data/source:/work
+      - ./data/${SOURCE_OUT:-landing}:/out      # met chaos: outbox, zonder chaos: rechtstreeks landing
+
+  chaos:
+    profiles: [chaos, all]
+    build: {context: ., dockerfile: chaos/Dockerfile}
+    user: *user
+    environment:
+      CHAOS_MODE: ${CHAOS_MODE:-random}
+      CHAOS_PROBABILITY: ${CHAOS_PROBABILITY:-0.3}
+      CHAOS_WARMUP_BATCHES: ${CHAOS_WARMUP_BATCHES:-4}
+      CHAOS_SEED: ${CHAOS_SEED:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./data/outbox:/outbox:ro
+      - ./data/landing:/landing
+      - ./data/chaos:/state
+
+  airflow-db:
+    profiles: [core, all]
+    image: postgres:16
+    environment: {POSTGRES_USER: airflow, POSTGRES_PASSWORD: airflow, POSTGRES_DB: airflow}
+    volumes: [airflow-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+
+  pipeline:
+    profiles: [core, all]
+    build: {context: ., dockerfile: pipeline/Dockerfile}
+    user: *user
+    depends_on:
+      airflow-db: {condition: service_healthy}
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"   # lokaal PoC: geen login op de Airflow-UI
+      DATA_DIR: /data
+      CONSOLE_URL: http://console:8000
+    ports: ["8080:8080"]
+    volumes:
+      - ./data/landing:/data/landing:ro
+      - ./data/candidates:/data/candidates:ro
+      - ./data/quarantine:/data/quarantine
+      - ./data/pipeline:/data/pipeline
+
+  console:
+    profiles: [console, all]
+    build: {context: ., dockerfile: console/Dockerfile}
+    user: *user
+    environment:
+      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+    ports: ["8000:8000"]
+    volumes:
+      - ./data/console:/state
+      - ./data/chaos:/chaos:ro                  # alleen om na afloop de diagnose te scoren
+
+  healer:
+    profiles: [healer, all]
+    build: {context: ., dockerfile: healer/Dockerfile}
+    user: *user
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CONSOLE_URL: http://console:8000
+    volumes:
+      - ./data/quarantine:/quarantine:ro
+      - ./data/candidates:/candidates
+
+volumes:
+  airflow-db:

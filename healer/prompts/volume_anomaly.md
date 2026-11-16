@@ -1,0 +1,3 @@
+## Deze bevinding: een tabel ontbreekt, is leeg of wijkt sterk af in omvang
+
+Vergelijk met original.history_stats en kijk of alle tabellen in dezelfde verhouding afwijken of maar één. Kijk ook naar de spreiding van de aankoopmomenten over de week: ontbreken er hele dagen, dan is de export waarschijnlijk afgebroken. Ontbrekende rijen zijn niet te herstellen uit de batch zelf, dus bij een afgebroken of onvolledige aanlevering is discard meestal het juiste voorstel. Is de batch intern consistent en de afwijking verklaarbaar (bijvoorbeeld een rustige week), zeg dat dan duidelijk: een mens kan besluiten het origineel vrij te geven.

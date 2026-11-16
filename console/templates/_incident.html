@@ -1,0 +1,106 @@
+{% macro badge(status) %}<span class="badge s-{{ status }}">{{ STATUS_LABELS[status] }}</span>{% endmacro %}
+
+{% macro findings_table(findings) %}
+<div class="card scroll">
+  <table>
+    <tr><th>Soort</th><th>Waar</th><th>Controle</th><th class="num">Geraakt</th><th>Toelichting</th></tr>
+    {% for f in findings %}
+    <tr>
+      <td>{{ ISSUE_LABELS[f.issue_type] }}</td>
+      <td><code>{{ f.table_name }}{% if f.column_name %}.{{ f.column_name }}{% endif %}</code></td>
+      <td><code>{{ f.check_name }}</code></td>
+      <td class="num">{{ f.n_affected }} van {{ f.n_total }}{% if f.pct_affected is not none %}<br><span class="muted">{{ f.pct_affected }}%</span>{% endif %}</td>
+      <td>{{ f.details }}{% if f.sample %}<br><span class="muted small">bijv. {% for s in f.sample[:3] %}<code>{{ s[:36] }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endmacro %}
+
+{% macro proposal_block(p) %}
+<p>{{ p.summary }}</p>
+{% for fx in p.fixes %}
+<div class="card">
+  <h3>{{ ISSUE_LABELS[fx.issue_type] }}
+    <span class="tag">{{ fx.model }}</span>
+    <span class="tag">zekerheid: {{ {"low": "laag", "medium": "middel", "high": "hoog"}[fx.confidence] }}</span>
+    <span class="tag">{{ "herstellen" if fx.action == "repair" else "batch weggooien" }}</span>
+  </h3>
+  <dl>
+    <dt>Oorzaak</dt><dd>{{ fx.root_cause }}</dd>
+    <dt>Bewijs</dt><dd><ul>{% for e in fx.evidence %}<li>{{ e }}</li>{% endfor %}</ul></dd>
+    <dt>Aanpak</dt><dd>{{ fx.rationale }}</dd>
+  </dl>
+  {% if fx.recipe_sql %}<pre>{{ fx.recipe_sql | join(";\n\n") }};</pre>{% endif %}
+  {% if fx.usage %}<p class="muted small">{{ fx.usage.turns }} stappen · {{ fx.usage.input_tokens }} tokens in · {{ fx.usage.output_tokens }} uit · ${{ "%.4f"|format(fx.usage.cost_usd or 0) }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endmacro %}
+
+{% macro validation_block(v) %}
+<div class="card scroll">
+  {% if v.passed %}<p class="ok"><b>Geslaagd.</b> De kandidaat doorstaat dezelfde controles die de fout vonden.</p>
+  {% else %}<p class="bad"><b>Gefaald.</b> {{ v.error or "De kandidaat heeft nog bevindingen." }}</p>{% endif %}
+  {% if v.row_counts_after %}
+  <table>
+    <tr><th>Tabel</th><th class="num">Aangeleverd</th><th class="num">Na herstel</th><th class="num">Verschil</th></tr>
+    {% for t, before in v.row_counts_before.items() %}
+    {% set after = v.row_counts_after.get(t, 0) %}
+    <tr><td><code>{{ t }}</code></td><td class="num">{{ before }}</td><td class="num">{{ after }}</td>
+        <td class="num {{ 'warn' if after != before }}">{{ "%+d"|format(after - before) }}</td></tr>
+    {% endfor %}
+  </table>
+  {% elif v.passed %}<p class="muted">Het voorstel is de batch weggooien; er is geen kandidaat om te vergelijken.</p>{% endif %}
+</div>
+{% if v.remaining_findings %}{{ findings_table(v.remaining_findings) }}{% endif %}
+{% endmacro %}
+
+{% macro incident_body(i) %}
+<h2>Wat is er mis</h2>
+{{ findings_table(i.findings) }}
+
+{% if i.proposal %}
+<h2>Diagnose en oplossing{% if i.attempt > 1 %} <span class="muted small">poging {{ i.attempt }}</span>{% endif %}</h2>
+{{ proposal_block(i.proposal) }}
+{% elif i.status in ("detected", "investigating") %}
+<h2>Diagnose en oplossing</h2>
+<p class="muted">{{ "De healer onderzoekt dit incident." if i.status == "investigating" else "Wacht op de healer." }}</p>
+{% endif %}
+
+{% if i.validation %}
+<h2>Controle door de pipeline</h2>
+{{ validation_block(i.validation) }}
+{% endif %}
+
+{% if i.feedback %}
+<h2>Feedback uit eerdere pogingen</h2>
+<div class="card"><ul>{% for f in i.feedback %}<li><b>Poging {{ f.attempt }}, {{ f.source }}:</b> {{ f.text }}</li>{% endfor %}</ul></div>
+{% for a in i.previous_attempts %}{% if a.proposal %}
+<details class="card"><summary>Voorstel van poging {{ a.attempt }}</summary>{{ proposal_block(a.proposal) }}</details>
+{% endif %}{% endfor %}
+{% endif %}
+
+{% if i.truth %}
+<h2>Wat de chaos-agent werkelijk deed</h2>
+<div class="card">
+  {% if i.truth.organic %}
+  <p>Niets: deze batch is ongewijzigd afgeleverd. De afwijking zat dus in de brondata zelf.</p>
+  {% else %}
+  <ul>{% for inj in i.truth.injections %}
+    <li><b>{{ ISSUE_LABELS[inj.issue_type] }}</b> (<code>{{ inj.variant }}</code>) op <code>{{ inj.table }}{% if inj.column %}.{{ inj.column }}{% endif %}</code>, {{ inj.n_affected }} rijen{% if inj.renamed_to %}, hernoemd naar <code>{{ inj.renamed_to }}</code>{% endif %}{% if inj.reason %}<br><span class="muted small">{{ inj.reason }}</span>{% endif %}</li>
+  {% endfor %}</ul>
+  <p>Detectie: <b class="{{ 'ok' if i.truth.detected_ok else 'bad' }}">{{ "juist" if i.truth.detected_ok else "gemist" }}</b>
+  {% if i.truth.diagnosed_ok is not none %} · Diagnose: <b class="{{ 'ok' if i.truth.diagnosed_ok else 'bad' }}">{{ "juist" if i.truth.diagnosed_ok else "onvolledig" }}</b>{% endif %}</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<h2>Tijdlijn</h2>
+<div class="card scroll"><table>
+  {% for t in i.timeline %}<tr><td class="muted small" style="white-space:nowrap">{{ t.at[:19] | replace("T", " ") }}</td><td>{{ badge(t.status) }}</td><td>{{ t.note }}</td></tr>{% endfor %}
+</table></div>
+{% endmacro %}
+
+{% macro meta_line(i) %}
+<p class="muted">{{ i.id }}{% if i.window_start %} · week van {{ i.window_start }}{% endif %} · poging {{ i.attempt }} van {{ i.max_attempts }}{% if i.models %} · {{ i.models | join(", ") }}{% endif %}{% if i.cost_usd %} · ${{ "%.4f"|format(i.cost_usd) }}{% endif %}</p>
+{% endmacro %}

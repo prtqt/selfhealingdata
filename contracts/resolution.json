@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Resolution (pipeline -> console)",
+  "type": "object",
+  "properties": {
+    "outcome": {
+      "enum": [
+        "released",
+        "discarded",
+        "failed"
+      ]
+    },
+    "detail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "outcome"
+  ],
+  "additionalProperties": false
+}

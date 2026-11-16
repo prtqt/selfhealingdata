@@ -1,0 +1,48 @@
+{% import "_incident.html" as m %}
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Self-healing rapport</title>
+  {% include "_style.html" %}
+</head>
+<body>
+<main>
+  <h1>Self-healing rapport</h1>
+  <p class="muted">Alle incidenten met diagnose, oplossing en besluit. Gemaakt op {{ generated_at[:19] | replace("T", " ") }} UTC.</p>
+
+  {% set s = summary %}
+  <div class="counters">
+    <div class="counter"><b>{{ s.total }}</b><span>Incidenten</span></div>
+    <div class="counter"><b>{{ s.counts.resolved }}</b><span>Opgelost</span></div>
+    <div class="counter"><b>{{ s.counts.discarded }}</b><span>Weggegooid</span></div>
+    <div class="counter"><b>{{ s.total - s.counts.resolved - s.counts.discarded }}</b><span>Nog open</span></div>
+    {% if s.scored %}
+    <div class="counter"><b>{{ s.detected_ok }}/{{ s.scored }}</b><span>Detectie juist</span></div>
+    <div class="counter"><b>{{ s.diagnosed_ok }}/{{ s.scored }}</b><span>Diagnose juist</span></div>
+    {% endif %}
+    <div class="counter"><b>${{ "%.2f"|format(s.cost_usd) }}</b><span>Kosten agents</span></div>
+  </div>
+
+  <div class="card scroll">
+    <table>
+      <tr><th>Batch</th><th>Status</th><th>Soort fout</th><th>Besluit</th></tr>
+      {% for i in incidents %}
+      <tr><td><a href="#{{ i.id }}">{{ i.batch_id }}</a></td><td>{{ m.badge(i.status) }}</td>
+          <td>{% for t in i.types %}<span class="tag">{{ ISSUE_LABELS[t] }}</span>{% endfor %}</td>
+          <td class="small">{% if i.decision %}{{ i.decision.decision }} door {{ i.decision.decided_by }}{% if i.decision.comment %}: {{ i.decision.comment }}{% endif %}{% else %}–{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {% for i in incidents %}
+  <section class="incident-block" id="{{ i.id }}">
+    <h1>{{ i.batch_id }} {{ m.badge(i.status) }}</h1>
+    {{ m.meta_line(i) }}
+    {{ m.incident_body(i) }}
+  </section>
+  {% endfor %}
+</main>
+</body>
+</html>

@@ -1,0 +1,27 @@
+version: 2
+sources:
+  - name: landing        # door de gate klaargezet in een wegwerp-DuckDB
+    schema: landing
+    tables:
+      - name: orders
+      - name: order_items
+      - name: order_payments
+      - name: customers
+      - name: products
+      - name: columns_actual
+      - name: files
+      - name: contract
+      - name: history
+      - name: manifest
+  - name: raw            # warehouse: alles als tekst, met batch_id
+    schema: raw
+    tables:
+      - name: orders
+      - name: order_items
+      - name: order_payments
+      - name: customers
+      - name: products
+  - name: meta
+    schema: meta
+    tables:
+      - name: batch_registry

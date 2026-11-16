@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Incident (pipeline -> console)",
+  "type": "object",
+  "properties": {
+    "batch_id": {
+      "type": "string"
+    },
+    "quarantine_path": {
+      "type": "string",
+      "description": "Mapnaam onder quarantine/"
+    },
+    "window_start": {
+      "type": "string"
+    },
+    "window_end": {
+      "type": "string"
+    },
+    "row_counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "required": [
+    "batch_id",
+    "quarantine_path",
+    "findings",
+    "row_counts"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_type",
+        "table_name",
+        "check_name",
+        "n_affected",
+        "n_total",
+        "details"
+      ],
+      "properties": {
+        "issue_type": {
+          "enum": [
+            "null_spike",
+            "duplicates",
+            "invalid_values",
+            "referential_integrity",
+            "volume_anomaly",
+            "schema_drift"
+          ]
+        },
+        "table_name": {
+          "type": "string"
+        },
+        "column_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "check_name": {
+          "type": "string"
+        },
+        "n_affected": {
+          "type": "integer"
+        },
+        "n_total": {
+          "type": "integer"
+        },
+        "pct_affected": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sample": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

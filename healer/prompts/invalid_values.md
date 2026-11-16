@@ -1,0 +1,3 @@
+## Deze bevinding: waarden die bedrijfsregels schenden
+
+Zoek het patroon in de foute waarden. Een vaste factor (alles duizend keer te groot), een omgekeerd teken of een vaste verschuiving in datums wijst op een systematische fout die terug te rekenen is. Controleer zo'n vermoeden tegen een onafhankelijke bron in de batch: de som van prijs en vrachtkosten per order hoort ongeveer gelijk te zijn aan de betaling, en het aankoopmoment hoort in de week van de batch te vallen en vóór het goedkeurings- en levermoment. Let erop dat de controle van de pipeline alleen de extreemste waarden ziet; dezelfde fout kan ook in rijen zitten die net binnen de grenzen blijven.

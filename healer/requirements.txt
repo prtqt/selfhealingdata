@@ -1,0 +1,4 @@
+anthropic>=2.9,<3
+duckdb==2.0.0
+pyyaml>=6
+requests>=2.31

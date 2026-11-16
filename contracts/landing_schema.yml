@@ -1,0 +1,51 @@
+# Afspraak tussen source en pipeline: zo ziet één batch in landing/ eruit.
+# Een batch is een map <batch_id>/ met per tabel een CSV en een _manifest.json
+# ({"batch_id", "window_start", "window_end"}; window_end is exclusief).
+version: 1
+tables:
+  orders:
+    key: [order_id]
+    columns:
+      order_id: {type: varchar, required: true}
+      customer_id: {type: varchar, required: true}
+      order_status: {type: varchar, required: true}
+      order_purchase_timestamp: {type: timestamp, required: true}
+      order_approved_at: {type: timestamp}
+      order_delivered_carrier_date: {type: timestamp}
+      order_delivered_customer_date: {type: timestamp}
+      order_estimated_delivery_date: {type: timestamp}
+  order_items:
+    key: [order_id, order_item_id]
+    columns:
+      order_id: {type: varchar, required: true}
+      order_item_id: {type: integer, required: true}
+      product_id: {type: varchar, required: true}
+      seller_id: {type: varchar, required: true}
+      shipping_limit_date: {type: timestamp}
+      price: {type: double, required: true}
+      freight_value: {type: double, required: true}
+  order_payments:
+    key: [order_id, payment_sequential]
+    columns:
+      order_id: {type: varchar, required: true}
+      payment_sequential: {type: integer, required: true}
+      payment_type: {type: varchar, required: true}
+      payment_installments: {type: integer, required: true}
+      payment_value: {type: double, required: true}
+  customers:
+    key: [customer_id]
+    columns:
+      customer_id: {type: varchar, required: true}
+      customer_unique_id: {type: varchar, required: true}
+      customer_zip_code_prefix: {type: varchar}
+      customer_city: {type: varchar}
+      customer_state: {type: varchar, required: true}
+  products:
+    key: [product_id]
+    columns:
+      product_id: {type: varchar, required: true}
+      product_category_name: {type: varchar}
+      product_weight_g: {type: double}
+      product_length_cm: {type: double}
+      product_height_cm: {type: double}
+      product_width_cm: {type: double}

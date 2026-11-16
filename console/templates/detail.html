@@ -1,0 +1,60 @@
+{% import "_incident.html" as m %}
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if i.status in ("detected", "investigating", "proposed", "approved") %}<meta http-equiv="refresh" content="10">{% endif %}
+  <title>{{ i.batch_id }} · Self-healing console</title>
+  {% include "_style.html" %}
+</head>
+<body>
+<main>
+  <p class="small"><a href="/">← Alle incidenten</a></p>
+  <h1>{{ i.batch_id }} {{ m.badge(i.status) }}</h1>
+  {{ m.meta_line(i) }}
+
+  {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+
+  {% if i.status in ("detected", "investigating", "proposed", "validated", "needs_human") %}
+  <form class="card decide" method="post" action="/incidents/{{ i.id }}/decision">
+    {% if i.status == "validated" %}
+      <h3>Jouw besluit</h3>
+      {% if i.proposal.action == "repair" %}
+      <p>De herstelde batch doorstaat alle controles. Na goedkeuring leest de pipeline hem in en bouwt de marts bij.</p>
+      {% else %}
+      <p>De healer stelt voor deze batch <b>weg te gooien</b>. Na goedkeuring wordt hij niet ingelezen.</p>
+      {% endif %}
+    {% elif i.status == "needs_human" %}
+      <h3>De healer komt er niet uit</h3>
+      <p>Na {{ i.max_attempts }} pogingen is er geen goed voorstel. Kies zelf wat er met de batch gebeurt.</p>
+    {% else %}
+      <h3>Zelf ingrijpen</h3>
+      <p class="muted">Je kunt het voorstel afwachten, of de batch nu zelf afhandelen.</p>
+    {% endif %}
+    <label for="comment">Toelichting{% if i.status == "validated" %} (bij afkeuren krijgt de healer deze tekst als feedback){% endif %}</label>
+    <textarea id="comment" name="comment"></textarea>
+    <label for="decided_by">Naam</label>
+    <input type="text" id="decided_by" name="decided_by" autocomplete="name">
+    <div class="buttons">
+      {% if i.status == "validated" %}
+      <button class="primary" name="decision" value="approve">Goedkeuren</button>
+      <button name="decision" value="reject">Afkeuren, opnieuw proberen</button>
+      <span class="spacer"></span>
+      {% endif %}
+      {% if not (i.status == "validated" and i.proposal.action == "discard") %}
+      <button class="danger" name="decision" value="discard" onclick="return confirm('Deze batch wordt niet ingelezen. Doorgaan?')">Batch weggooien</button>
+      {% endif %}
+      <button class="danger" name="decision" value="release_original" onclick="return confirm('De batch wordt ingelezen zoals hij is aangeleverd, met de fouten erin. Doorgaan?')">Origineel vrijgeven</button>
+    </div>
+  </form>
+  {% elif i.status == "approved" %}
+  <div class="card"><p>Besluit genomen. De pipeline voert het binnen een minuut uit.</p></div>
+  {% elif i.resolution %}
+  <div class="card"><p><b>{{ "Opgelost" if i.status == "resolved" else "Weggegooid" }}.</b> {{ i.resolution.detail }}</p></div>
+  {% endif %}
+
+  {{ m.incident_body(i) }}
+</main>
+</body>
+</html>

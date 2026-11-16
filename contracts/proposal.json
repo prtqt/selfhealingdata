@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposal (healer -> console)",
+  "type": "object",
+  "properties": {
+    "action": {
+      "enum": [
+        "repair",
+        "discard"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "candidate_path": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Mapnaam onder candidates/; null bij discard"
+    },
+    "fixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "issue_type",
+          "model",
+          "root_cause",
+          "evidence",
+          "confidence",
+          "action",
+          "recipe_sql",
+          "rationale"
+        ],
+        "properties": {
+          "issue_type": {
+            "enum": [
+              "null_spike",
+              "duplicates",
+              "invalid_values",
+              "referential_integrity",
+              "volume_anomaly",
+              "schema_drift"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "root_cause": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "action": {
+            "enum": [
+              "repair",
+              "discard"
+            ]
+          },
+          "recipe_sql": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              },
+              "cost_usd": {
+                "type": "number"
+              },
+              "turns": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "action",
+    "summary",
+    "fixes"
+  ],
+  "additionalProperties": false
+}
