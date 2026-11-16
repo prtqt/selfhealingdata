@@ -27,7 +27,7 @@
     </select>
     <label for="max_rows_removed_pct">Hoogstens dit percentage van de regels mag vervallen</label>
     <input type="number" id="max_rows_removed_pct" name="max_rows_removed_pct" min="0" max="100" step="0.5" value="{{ policy.max_rows_removed_pct }}" style="width:120px;font:inherit;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)">
-    <div class="buttons"><button class="primary">Beleid opslaan</button></div>
+    {% if can_decide %}<div class="buttons"><button class="primary">Beleid opslaan</button></div>{% else %}<p class="muted small">Alleen een product owner kan het beleid wijzigen.</p>{% endif %}
   </form>
 
   <h1 style="margin-top:36px">Blijvende regels</h1>
@@ -42,7 +42,7 @@
     <p class="small">Signatuur: <code>{{ r.signature | join(", ") }}</code> · <code>{{ r.id }}</code></p>
     <pre>{{ r.recipe_sql | join(";\n\n") }};</pre>
     {% endif %}
-    {% if r.active %}<form method="post" action="/rules/{{ r.id }}/deactivate" class="buttons"><button class="danger" onclick="return confirm('Deze regel uitzetten?')">Regel uitzetten</button></form>{% endif %}
+    {% if r.active and can_decide %}<form method="post" action="/rules/{{ r.id }}/deactivate" class="buttons"><button class="danger" onclick="return confirm('Deze regel uitzetten?')">Regel uitzetten</button></form>{% endif %}
   </div>
   {% else %}
   <div class="card"><p class="muted" style="margin:0">Nog geen regels. Vink bij het goedkeuren van een voorstel aan dat het voortaan automatisch mag.</p></div>

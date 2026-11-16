@@ -7,9 +7,10 @@ from pathlib import Path
 
 import jsonschema
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+import auth
 import notify
 from store import CLOSED, STATUSES, Conflict, NotFound, Store, now
 
@@ -100,21 +101,58 @@ def duration(minutes: float | None) -> str:
 SHARED_PAGES = {"rules"}  # pagina's die voor beide lezers gelijk zijn, op een enkel blok na
 
 
+def current_user(request: Request) -> dict | None:
+    return auth.user_from(request.cookies.get("session")) if auth.ENABLED else None
+
+
+def can_decide(request: Request) -> bool:
+    user = current_user(request)
+    return not auth.ENABLED or (user is not None and user["role"] == "po")
+
+
+def require_po(request: Request) -> str | None:
+    """Naam van wie beslist; weigert als login aan staat en dit geen product owner is."""
+    if not can_decide(request):
+        raise HTTPException(403, "alleen een product owner mag beslissen")
+    user = current_user(request)
+    return user["name"] if user else None
+
+
 def current_view(request: Request) -> str:
-    """?view= wint en wordt onthouden in een cookie; standaard de product-ownerweergave."""
+    """?view= wint en wordt onthouden in een cookie; anders de weergave die bij de rol hoort."""
     chosen = request.query_params.get("view") or request.cookies.get("view")
-    return chosen if chosen in ("po", "dev") else "po"
+    if chosen in ("po", "dev"):
+        return chosen
+    user = current_user(request)
+    return user["role"] if user else "po"
 
 
 def page(request: Request, name: str, context: dict):
     v = current_view(request)
     template = f"{name}.html" if name in SHARED_PAGES else f"{name}_{v}.html"
-    response = templates.TemplateResponse(request, template, {**context, "view": v, "path": request.url.path, "static": False})
+    response = templates.TemplateResponse(request, template, {**context, "view": v, "path": request.url.path, "static": False,
+                                                           "user": current_user(request), "can_decide": can_decide(request)})
     response.set_cookie("view", v, max_age=365 * 24 * 3600, samesite="lax")
     return response
 
 
 app = FastAPI(title="Self-healing console")
+
+
+@app.middleware("http")
+async def guard(request: Request, call_next):
+    """Met login aan: /api vraagt het dienst-token of een sessie, de schermen vragen een sessie."""
+    path = request.url.path
+    if not auth.ENABLED or path in ("/login", "/api/health"):
+        return await call_next(request)
+    user = auth.user_from(request.cookies.get("session"))
+    if path.startswith("/api/"):
+        if auth.token_ok(request.headers.get("authorization")) or user:
+            return await call_next(request)
+        return JSONResponse({"detail": "token of login vereist"}, status_code=401)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    return await call_next(request)
 store = Store(STATE / "incidents.sqlite", int(os.environ.get("MAX_ATTEMPTS", "3")))
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.globals.update(STATUS_LABELS=STATUS_LABELS, ISSUE_LABELS=ISSUE_LABELS, PO_ISSUE_LABELS=PO_ISSUE_LABELS,
@@ -188,7 +226,10 @@ def validation(incident_id: str, payload: dict):
 
 
 @app.post("/api/incidents/{incident_id}/decision")
-def decision(incident_id: str, payload: dict):
+def decision(incident_id: str, payload: dict, request: Request):
+    if not auth.token_ok(request.headers.get("authorization")):
+        if name := require_po(request):
+            payload = {**payload, "decided_by": name}
     check("decision", payload)
     return guarded(store.decide, incident_id, payload)
 
@@ -306,9 +347,9 @@ def detail(request: Request, incident_id: str, error: str = ""):
 
 
 @app.post("/incidents/{incident_id}/decision")
-def decide_form(incident_id: str, decision: str = Form(...), comment: str = Form(""), decided_by: str = Form(""),
-                save_as_rule: str = Form("")):
-    payload = {"decision": decision, "comment": comment, "decided_by": decided_by or "console",
+def decide_form(request: Request, incident_id: str, decision: str = Form(...), comment: str = Form(""),
+                decided_by: str = Form(""), save_as_rule: str = Form("")):
+    payload = {"decision": decision, "comment": comment, "decided_by": require_po(request) or decided_by or "console",
                "save_as_rule": bool(save_as_rule) and decision == "approve"}
     check("decision", payload)
     try:
@@ -320,21 +361,46 @@ def decide_form(incident_id: str, decision: str = Form(...), comment: str = Form
     return RedirectResponse(f"/incidents/{incident_id}", status_code=303)
 
 
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, error: str = ""):
+    return templates.TemplateResponse(request, "login.html", {"error": error})
+
+
+@app.post("/login")
+def login(name: str = Form(...), password: str = Form(...)):
+    user = auth.check_password(name, password)
+    if user is None:
+        return RedirectResponse("/login?error=1", status_code=303)
+    response = RedirectResponse("/", status_code=303)
+    response.set_cookie("session", auth.session_for(user["name"]), httponly=True, samesite="lax", max_age=12 * 3600)
+    response.delete_cookie("view")  # begin in de weergave van je rol
+    return response
+
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse("/login", status_code=303)
+    response.delete_cookie("session")
+    return response
+
+
 @app.get("/rules", response_class=HTMLResponse)
 def rules_page(request: Request):
     return page(request, "rules", {"rules": store.rules(), "policy": store.policy()})
 
 
 @app.post("/policy")
-def save_policy(enabled: str = Form(""), issue_types: list[str] = Form([]), min_confidence: str = Form("high"),
+def save_policy(request: Request, enabled: str = Form(""), issue_types: list[str] = Form([]), min_confidence: str = Form("high"),
                 max_rows_removed_pct: float = Form(0.0)):
+    require_po(request)
     store.set_policy({"enabled": bool(enabled), "issue_types": issue_types, "min_confidence": min_confidence,
                       "max_rows_removed_pct": max_rows_removed_pct})
     return RedirectResponse("/rules", status_code=303)
 
 
 @app.post("/rules/{rule_id}/deactivate")
-def deactivate_rule(rule_id: str):
+def deactivate_rule(request: Request, rule_id: str):
+    require_po(request)
     guarded(store.deactivate_rule, rule_id)
     return RedirectResponse("/rules", status_code=303)
 

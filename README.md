@@ -123,6 +123,8 @@ Eén console, twee weergaven. Je wisselt rechtsboven; de keuze wordt onthouden. 
 
 **Meldingen.** Zet `NOTIFY_WEBHOOK_URL` in `.env` op een Slack-webhook (of iets dat `{"text": ...}` accepteert) en je krijgt een bericht met link zodra een levering op een besluit wacht of de healer er niet uitkomt.
 
+**Login en rollen.** Standaard is er geen login. Zet `CONSOLE_USERS` (bijvoorbeeld `pieter:po:...,sam:dev:...`) en `CONSOLE_API_TOKEN` in `.env` om die aan te zetten. Een product owner mag beslissen en beleid wijzigen; een developer kan alles lezen maar niets besluiten. De naam bij een besluit komt dan uit de login. Pipeline en healer melden zich met het token.
+
 In beide weergaven kun je goedkeuren, afkeuren met een opmerking (de healer probeert het opnieuw met jouw tekst als feedback), de levering laten vervallen, of hem ongewijzigd verwerken. Na drie mislukte pogingen (instelbaar met `MAX_ATTEMPTS`) is het aan een mens.
 
 ## Geheimen buiten de repo houden
@@ -166,7 +168,7 @@ Een volledige run met Claude kost API-tegoed: 13 gevallen per seed, elk met een 
 
 ## Beperkingen
 
-- Geen login op de console of op Airflow. Alleen lokaal gebruiken.
+- Login op de console staat standaard uit, en wachtwoorden staan als platte tekst in `.env`. Airflow heeft geen login. Alleen lokaal gebruiken.
 - Een regel past alleen bij exact dezelfde bevindingen (zelfde controle op dezelfde kolom). Recepten met vaste waarden uit één batch, zoals een lijst order-id's, werken een volgende keer niet; de poort vangt dat op en de agents nemen het over.
 - De echte Olist-data loopt in de laatste weken van 2018 leeg. Die weken geven terechte volume-incidenten zonder dat chaos iets deed; de console toont dat na afloop.
 - Kosten in de console zijn een schatting op basis van de prijzen in `healer/routing.yml`.

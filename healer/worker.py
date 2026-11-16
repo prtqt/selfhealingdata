@@ -87,7 +87,9 @@ def apply_rule(ws: Workspace, rule: dict, incident: dict, issue_type: str) -> di
 
 
 def api(method: str, path: str, **kwargs):
-    r = requests.request(method, f"{CONSOLE_URL}/api/incidents{path}", timeout=15, **kwargs)
+    token = os.environ.get("CONSOLE_API_TOKEN")  # alleen nodig als de console login aan heeft staan
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    r = requests.request(method, f"{CONSOLE_URL}/api/incidents{path}", timeout=15, headers=headers, **kwargs)
     r.raise_for_status()
     return r.json()
 

@@ -132,14 +132,15 @@ class Store:
 
     # ------------------------------------------------------------ schrijven
 
-    def _save(self, doc: dict, status: str, note: str) -> dict:
+    def _save(self, doc: dict, status: str, note: str, notify: bool = True) -> dict:
         doc["status"], doc["updated_at"] = status, now()
         doc["timeline"].append({"at": doc["updated_at"], "status": status, "note": note})
         self.db.execute(
             "insert or replace into incidents values (?, ?, ?, ?, ?, ?)",
             [doc["id"], doc["batch_id"], status, doc["created_at"], doc["updated_at"], json.dumps(doc)])
         self.db.commit()
-        self.on_change(doc)
+        if notify:
+            self.on_change(doc)
         return doc
 
     def _expect(self, doc: dict, *allowed: str) -> None:
@@ -201,12 +202,12 @@ class Store:
                 # Het recept is eerder door een mens goedgekeurd en de poort is opnieuw gehaald.
                 doc["decision"] = {"decision": "approve", "decided_by": f"regel {rule_id}", "auto": True, "at": now()}
                 doc["final_action"] = "repair"
-                self._save(doc, "validated", "kandidaat doorstaat alle controles")
+                self._save(doc, "validated", "kandidaat doorstaat alle controles", notify=False)
                 return self._save(doc, "approved", f"automatisch goedgekeurd: regel {rule_id}")
             if validation["passed"] and (reason := self._policy_allows(doc)):
                 doc["decision"] = {"decision": "approve", "decided_by": "beleid", "auto": True, "comment": reason, "at": now()}
                 doc["final_action"] = "repair"
-                self._save(doc, "validated", "kandidaat doorstaat alle controles")
+                self._save(doc, "validated", "kandidaat doorstaat alle controles", notify=False)
                 return self._save(doc, "approved", f"automatisch goedgekeurd volgens beleid: {reason}")
             if validation["passed"]:
                 return self._save(doc, "validated", "kandidaat doorstaat alle controles")

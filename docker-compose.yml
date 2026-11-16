@@ -63,6 +63,7 @@ services:
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"   # lokaal PoC: geen login op de Airflow-UI
       DATA_DIR: /data
       CONSOLE_URL: http://console:8000
+      CONSOLE_API_TOKEN: ${CONSOLE_API_TOKEN:-}
     ports: ["8080:8080"]
     volumes:
       - ./data/landing:/data/landing:ro
@@ -77,6 +78,9 @@ services:
     environment:
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
       NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+      CONSOLE_USERS: ${CONSOLE_USERS:-}
+      CONSOLE_API_TOKEN: ${CONSOLE_API_TOKEN:-}
+      CONSOLE_SECRET: ${CONSOLE_SECRET:-}
       CONSOLE_PUBLIC_URL: ${CONSOLE_PUBLIC_URL:-http://localhost:8000}
     ports: ["8000:8000"]
     volumes:
@@ -90,6 +94,7 @@ services:
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CONSOLE_URL: http://console:8000
+      CONSOLE_API_TOKEN: ${CONSOLE_API_TOKEN:-}
     volumes:
       - ./data/quarantine:/quarantine:ro
       - ./data/candidates:/candidates

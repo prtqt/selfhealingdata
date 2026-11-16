@@ -18,6 +18,9 @@
   {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
 
   {% if i.status in ("detected", "investigating", "proposed", "validated", "needs_human") %}
+  {% if not can_decide %}
+  <div class="card"><p style="margin:0" class="muted">Je bent ingelogd als developer. Alleen een product owner kan over deze levering beslissen.</p></div>
+  {% else %}
   <form class="card decide" method="post" action="/incidents/{{ i.id }}/decision">
     {% if i.status == "validated" %}
       <h3>Jouw besluit</h3>
@@ -35,8 +38,10 @@
     {% endif %}
     <label for="comment">Toelichting{% if i.status == "validated" %} (bij afkeuren krijgt de healer deze tekst als feedback){% endif %}</label>
     <textarea id="comment" name="comment"></textarea>
+    {% if not user %}
     <label for="decided_by">Naam</label>
     <input type="text" id="decided_by" name="decided_by" autocomplete="name">
+    {% endif %}
     {% if i.status == "validated" and i.proposal.action == "repair" %}
     <label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:0.95rem">
       <input type="checkbox" name="save_as_rule" value="1" style="margin-top:4px">
@@ -55,6 +60,7 @@
       <button class="danger" name="decision" value="release_original" onclick="return confirm('De batch wordt ingelezen zoals hij is aangeleverd, met de fouten erin. Doorgaan?')">Origineel vrijgeven</button>
     </div>
   </form>
+  {% endif %}
   {% elif i.status == "approved" %}
   <div class="card"><p>Besluit genomen. De pipeline voert het binnen een minuut uit.</p></div>
   {% elif i.resolution %}

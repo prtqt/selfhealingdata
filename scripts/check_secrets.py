@@ -19,8 +19,8 @@ FORBIDDEN_FILES = re.compile(r"(^|/)(\.env(\.(?!example$).*)?|kaggle\.json)$|\.(
 SECRET = re.compile(r"hooks\.slack\.com/services/[A-Za-z0-9/]{20,}|sk-ant-[A-Za-z0-9_-]{8,}|KGAT_[A-Za-z0-9]{8,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}"
                     r"|-----BEGIN [A-Z ]*PRIVATE KEY")
 # Een sleutelvariabele met een ingevulde waarde, zoals in een .env-bestand.
-KEY_VARS = re.compile(r"^\s*(ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|KAGGLE_KEY|KAGGLE_USERNAME|KAGGLE_API_TOKEN)"
-                      r"[ \t]*=[ \t]*(\S+)", re.M)
+KEY_VARS = re.compile(r"^\s*(ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|KAGGLE_KEY|KAGGLE_USERNAME|KAGGLE_API_TOKEN|CONSOLE_USERS|CONSOLE_API_TOKEN|CONSOLE_SECRET|NOTIFY_WEBHOOK_URL)"
+                      r"=(?!\$)(\S+)", re.M)   # zonder spaties: de vorm van een .env-bestand, niet van code
 
 
 def git(*args: str) -> bytes:

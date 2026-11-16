@@ -7,4 +7,5 @@
     <a href="{{ path }}?view=po" {% if view == "po" %}aria-current="true"{% endif %}>Product owner</a>
     <a href="{{ path }}?view=dev" {% if view == "dev" %}aria-current="true"{% endif %}>Developer</a>
   </nav>
+  {% if user %}<span class="small muted">{{ user.name }} · <a href="/logout">uitloggen</a></span>{% endif %}
 </div>

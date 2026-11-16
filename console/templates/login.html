@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inloggen · Self-healing console</title>
+  {% include "_style.html" %}
+</head>
+<body>
+<main style="max-width:420px">
+  <h1 style="margin-top:48px">Inloggen</h1>
+  <p class="muted">Self-healing data pipeline</p>
+  {% if error %}<div class="alert" role="alert">Naam of wachtwoord klopt niet.</div>{% endif %}
+  <form class="card decide" method="post" action="/login" style="border-color:var(--line)">
+    <label for="name" style="margin-top:0">Naam</label>
+    <input type="text" id="name" name="name" autocomplete="username" required autofocus>
+    <label for="password">Wachtwoord</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required style="width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px">
+    <div class="buttons"><button class="primary">Inloggen</button></div>
+  </form>
+</main>
+</body>
+</html>
