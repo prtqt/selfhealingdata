@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Regels · Self-healing console</title>
+  {% include "_style.html" %}
+</head>
+<body>
+<main>
+  {% include "_header.html" %}
+  <h1>Blijvende regels</h1>
+  <p class="muted lede">Oplossingen die je eerder hebt goedgekeurd en die automatisch worden toegepast als precies dezelfde afwijking terugkomt. De kwaliteitscontrole geldt elke keer opnieuw; faalt een regel, dan neemt de AI het over.</p>
+  {% for r in rules %}
+  <div class="card">
+    <h3>{% for t in r.issue_types %}<span class="tag">{{ (PO_ISSUE_LABELS if view == "po" else ISSUE_LABELS)[t] }}</span>{% endfor %}
+      <span class="badge {{ 'g-done' if r.active else 's-discarded' }}">{{ "Actief" if r.active else "Uitgezet" }}</span></h3>
+    <p>{{ r.summary }}</p>
+    <p class="muted small">Gemaakt door {{ r.created_by }} op {{ r.created_at | nl_date }} vanuit <a href="/incidents/{{ r.created_from }}">{{ r.created_from }}</a> · {{ r.applied }} keer toegepast{% if r.failed %} · <span class="bad">{{ r.failed }} keer mislukt</span>{% endif %}</p>
+    {% if view == "dev" %}
+    <p class="small">Signatuur: <code>{{ r.signature | join(", ") }}</code> · <code>{{ r.id }}</code></p>
+    <pre>{{ r.recipe_sql | join(";\n\n") }};</pre>
+    {% endif %}
+    {% if r.active %}<form method="post" action="/rules/{{ r.id }}/deactivate" class="buttons"><button class="danger" onclick="return confirm('Deze regel uitzetten?')">Regel uitzetten</button></form>{% endif %}
+  </div>
+  {% else %}
+  <div class="card"><p class="muted" style="margin:0">Nog geen regels. Vink bij het goedkeuren van een voorstel aan dat het voortaan automatisch mag.</p></div>
+  {% endfor %}
+</main>
+</body>
+</html>

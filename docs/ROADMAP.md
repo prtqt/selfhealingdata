@@ -5,7 +5,7 @@ Tien uitbreidingen, in de volgorde waarin ze gebouwd worden. Elke stap is los op
 | # | Uitbreiding | Waar | Kern van het ontwerp | Status |
 |---|---|---|---|---|
 | 1 | Evaluatieharnas | nieuw: `evals/` | Vaste set verstoorde batches met bekende oorzaak. Per geval: detectie juist, kandidaat door de poort, aandeel schone rijen teruggewonnen, kosten. Vergelijkt modellen en prompts. | klaar |
-| 2 | Blijvende herstelregels | console, healer | Een goedgekeurd recept kan als regel worden bewaard. Bij een incident met dezelfde bevindingen past de healer het recept toe zonder Claude; de poort controleert, daarna gaat het zonder mens door. Faalt de regel, dan neemt de agent het over. | gepland |
+| 2 | Blijvende herstelregels | console, healer | Een goedgekeurd recept kan als regel worden bewaard. Bij een incident met dezelfde bevindingen past de healer het recept toe zonder Claude; de poort controleert, daarna gaat het zonder mens door. Faalt de regel, dan neemt de agent het over. | klaar |
 | 3 | Zakelijke impact | pipeline, console | De pipeline rekent bij quarantaine uit hoeveel bestellingen en omzet in de batch zitten en welke rapporten wachten. De product owner sorteert op impact. | gepland |
 | 4 | Automatisch goedkeuren binnen grenzen | console | Beleid dat de product owner instelt: welke soorten fouten, minimale zekerheid, maximaal rijverlies. Elk automatisch besluit staat in de tijdlijn. | gepland |
 | 5 | Meldingen | console | Webhook (Slack-formaat) zodra iets op een besluit wacht of de healer er niet uitkomt. | gepland |

@@ -37,6 +37,12 @@
     <textarea id="comment" name="comment"></textarea>
     <label for="decided_by">Naam</label>
     <input type="text" id="decided_by" name="decided_by" autocomplete="name">
+    {% if i.status == "validated" and i.proposal.action == "repair" %}
+    <label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:0.95rem">
+      <input type="checkbox" name="save_as_rule" value="1" style="margin-top:4px">
+      <span>Recept bewaren als blijvende regel voor incidenten met dezelfde signatuur (<code>{{ i.signature | join(', ') }}</code>).</span>
+    </label>
+    {% endif %}
     <div class="buttons">
       {% if i.status == "validated" %}
       <button class="primary" name="decision" value="approve">Goedkeuren</button>

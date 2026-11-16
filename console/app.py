@@ -89,6 +89,9 @@ def duration(minutes: float | None) -> str:
     return f"{round(minutes / 1440)} dagen"
 
 
+SHARED_PAGES = {"rules"}  # pagina's die voor beide lezers gelijk zijn, op een enkel blok na
+
+
 def current_view(request: Request) -> str:
     """?view= wint en wordt onthouden in een cookie; standaard de product-ownerweergave."""
     chosen = request.query_params.get("view") or request.cookies.get("view")
@@ -97,7 +100,8 @@ def current_view(request: Request) -> str:
 
 def page(request: Request, name: str, context: dict):
     v = current_view(request)
-    response = templates.TemplateResponse(request, f"{name}_{v}.html", {**context, "view": v, "path": request.url.path, "static": False})
+    template = f"{name}.html" if name in SHARED_PAGES else f"{name}_{v}.html"
+    response = templates.TemplateResponse(request, template, {**context, "view": v, "path": request.url.path, "static": False})
     response.set_cookie("view", v, max_age=365 * 24 * 3600, samesite="lax")
     return response
 
@@ -186,6 +190,11 @@ def resolution(incident_id: str, payload: dict):
     return guarded(store.resolve, incident_id, payload)
 
 
+@app.get("/api/rules")
+def list_rules():
+    return store.rules()
+
+
 # ---------------------------------------------------------------- weergave
 
 def chaos_truth(doc: dict) -> dict | None:
@@ -264,8 +273,10 @@ def detail(request: Request, incident_id: str, error: str = ""):
 
 
 @app.post("/incidents/{incident_id}/decision")
-def decide_form(incident_id: str, decision: str = Form(...), comment: str = Form(""), decided_by: str = Form("")):
-    payload = {"decision": decision, "comment": comment, "decided_by": decided_by or "console"}
+def decide_form(incident_id: str, decision: str = Form(...), comment: str = Form(""), decided_by: str = Form(""),
+                save_as_rule: str = Form("")):
+    payload = {"decision": decision, "comment": comment, "decided_by": decided_by or "console",
+               "save_as_rule": bool(save_as_rule) and decision == "approve"}
     check("decision", payload)
     try:
         store.decide(incident_id, payload)
@@ -274,6 +285,17 @@ def decide_form(incident_id: str, decision: str = Form(...), comment: str = Form
     except Conflict as exc:
         return RedirectResponse(f"/incidents/{incident_id}?error={exc}", status_code=303)
     return RedirectResponse(f"/incidents/{incident_id}", status_code=303)
+
+
+@app.get("/rules", response_class=HTMLResponse)
+def rules_page(request: Request):
+    return page(request, "rules", {"rules": store.rules()})
+
+
+@app.post("/rules/{rule_id}/deactivate")
+def deactivate_rule(rule_id: str):
+    guarded(store.deactivate_rule, rule_id)
+    return RedirectResponse("/rules", status_code=303)
 
 
 @app.get("/export", response_class=HTMLResponse)

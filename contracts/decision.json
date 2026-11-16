@@ -16,6 +16,10 @@
     },
     "decided_by": {
       "type": "string"
+    },
+    "save_as_rule": {
+      "type": "boolean",
+      "description": "Bij approve: bewaar het recept als blijvende regel voor incidenten met dezelfde bevindingen."
     }
   },
   "required": [

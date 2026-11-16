@@ -171,3 +171,32 @@ def test_pipeline_keeps_working_when_console_is_down(env, batches, monkeypatch):
     assert (env / "quarantine" / batches[1].name / "findings.json").exists()
     assert flow.validate_candidates() == [] and flow.release_approved() == []
     assert flow.ingest_landing() == {"clean": [], "quarantined": []}  # niets dubbel verwerkt
+
+
+def test_recurring_drift_is_healed_by_a_rule_without_claude_or_human(stack, batches):
+    routing = stack.worker.load_routing(ROOT / "healer/routing.yml")
+    done = deliver(stack, batches[:1], broken=("schema_drift", "rename_column"))
+    stack.flow.ingest_landing()
+    rename = [f"alter table work.{done['table']} rename {done['renamed_to']} to {done['column']}"]
+    stack.worker.tick(ScriptedClaude(rename), routing)
+    stack.flow.validate_candidates()
+    inc = incident(stack, "validated")
+    requests.post(f"{stack.url}/api/incidents/{inc['id']}/decision",
+                  json={"decision": "approve", "decided_by": "Pieter", "save_as_rule": True}).raise_for_status()
+    stack.flow.release_approved()
+
+    # Volgende week dezelfde hernoemde kolom.
+    nxt = stack.dir / "landing" / batches[1].name
+    shutil.copytree(batches[1], nxt)
+    inject(nxt, "schema_drift", random.Random(3), "rename_column")
+    stack.flow.ingest_landing()
+
+    class NoClaude:
+        messages = beta = SimpleNamespace(messages=None, create=None)
+    stack.worker.tick(NoClaude(), routing)                  # zou crashen als een agent werd aangeroepen
+    stack.flow.validate_candidates()
+    auto = incident(stack, "approved")
+    assert auto["batch_id"] == batches[1].name and auto["decision"]["auto"]
+    stack.flow.release_approved()
+    with stack.warehouse.connect() as con:
+        assert con.execute("select status from meta.batch_registry order by batch_id").fetchall() == [("healed",), ("healed",)]

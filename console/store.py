@@ -26,6 +26,11 @@ class NotFound(Exception):
     pass
 
 
+def signature(findings: list[dict]) -> list[str]:
+    """Waaraan een terugkerende afwijking te herkennen is: welke controle faalt op welke kolom."""
+    return sorted({f"{f['table_name']}.{f.get('column_name') or '*'}:{f['check_name']}" for f in findings})
+
+
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -37,6 +42,7 @@ class Store:
         self.db.execute("pragma journal_mode=wal")
         self.db.execute("""create table if not exists incidents (
             id text primary key, batch_id text, status text, created_at text, updated_at text, doc text)""")
+        self.db.execute("create table if not exists rules (id text primary key, active integer, doc text)")
         self.lock = threading.Lock()
         self.max_attempts = max_attempts
 
@@ -53,6 +59,37 @@ class Store:
         if status:
             sql, args = sql + " where status = ?", [status]
         return [json.loads(r[0]) for r in self.db.execute(sql + " order by created_at desc, id", args)]
+
+    # ------------------------------------------------------------ regels
+
+    def rules(self, only_active: bool = False) -> list[dict]:
+        sql = "select doc from rules" + (" where active = 1" if only_active else "") + " order by id"
+        return [json.loads(r[0]) for r in self.db.execute(sql)]
+
+    def _save_rule(self, rule: dict) -> dict:
+        self.db.execute("insert or replace into rules values (?, ?, ?)", [rule["id"], int(rule["active"]), json.dumps(rule)])
+        self.db.commit()
+        return rule
+
+    def _rule_for(self, doc: dict) -> dict | None:
+        """De actieve regel met precies dezelfde bevindingen, tenzij die bij dit incident al is geprobeerd."""
+        tried = {a["proposal"].get("rule_id") for a in doc["previous_attempts"] if a.get("proposal")}
+        return next((r for r in self.rules(only_active=True)
+                     if r["signature"] == doc["signature"] and r["id"] not in tried), None)
+
+    def _count_rule(self, rule_id: str, field: str) -> None:
+        for rule in self.rules():
+            if rule["id"] == rule_id:
+                rule[field] += 1
+                self._save_rule(rule)
+
+    def deactivate_rule(self, rule_id: str) -> dict:
+        with self.lock:
+            rule = next((r for r in self.rules() if r["id"] == rule_id), None)
+            if rule is None:
+                raise NotFound(rule_id)
+            rule["active"] = False
+            return self._save_rule(rule)
 
     # ------------------------------------------------------------ schrijven
 
@@ -88,6 +125,7 @@ class Store:
             if row:
                 return json.loads(row[0])
             doc = {**payload, "id": "inc-" + uuid.uuid4().hex[:8], "created_at": now(), "attempt": 1,
+                   "signature": signature(payload["findings"]),
                    "max_attempts": self.max_attempts, "feedback": [], "previous_attempts": [], "timeline": []}
             return self._save(doc, "detected", f"{len(payload['findings'])} bevindingen in {payload['batch_id']}")
 
@@ -95,7 +133,8 @@ class Store:
         with self.lock:
             doc = self.get(incident_id)
             self._expect(doc, "detected")
-            return self._save(doc, "investigating", "healer onderzoekt")
+            doc = self._save(doc, "investigating", "healer onderzoekt")
+            return {**doc, "rule": self._rule_for(doc)}  # de healer past een passende regel toe zonder agent
 
     def fail(self, incident_id: str, detail: str) -> dict:
         with self.lock:
@@ -115,6 +154,15 @@ class Store:
             doc = self.get(incident_id)
             self._expect(doc, "proposed")
             doc["validation"] = validation
+            rule_id = doc["proposal"].get("rule_id")
+            if rule_id:
+                self._count_rule(rule_id, "applied" if validation["passed"] else "failed")
+            if validation["passed"] and rule_id:
+                # Het recept is eerder door een mens goedgekeurd en de poort is opnieuw gehaald.
+                doc["decision"] = {"decision": "approve", "decided_by": f"regel {rule_id}", "auto": True, "at": now()}
+                doc["final_action"] = "repair"
+                self._save(doc, "validated", "kandidaat doorstaat alle controles")
+                return self._save(doc, "approved", f"automatisch goedgekeurd: regel {rule_id}")
             if validation["passed"]:
                 return self._save(doc, "validated", "kandidaat doorstaat alle controles")
             remaining = "; ".join(f"{f['issue_type']} op {f['table_name']}.{f.get('column_name') or '*'} "
@@ -131,7 +179,16 @@ class Store:
             if kind == "approve":
                 self._expect(doc, "validated")
                 doc["final_action"] = doc["proposal"]["action"]
-                return self._save(doc, "approved", f"goedgekeurd door {who}" + (f": {comment}" if comment else ""))
+                note = f"goedgekeurd door {who}" + (f": {comment}" if comment else "")
+                if decision.get("save_as_rule") and doc["proposal"]["action"] == "repair":
+                    rule = self._save_rule({
+                        "id": "regel-" + uuid.uuid4().hex[:6], "active": True, "signature": doc["signature"],
+                        "issue_types": sorted({f["issue_type"] for f in doc["findings"]}),
+                        "recipe_sql": [sql for fx in doc["proposal"]["fixes"] for sql in fx["recipe_sql"]],
+                        "summary": " ".join(fx.get("business_summary") or fx["root_cause"] for fx in doc["proposal"]["fixes"]),
+                        "created_from": doc["id"], "created_by": who, "created_at": now(), "applied": 0, "failed": 0})
+                    note += f"; bewaard als {rule['id']}"
+                return self._save(doc, "approved", note)
             if kind == "reject":
                 self._expect(doc, "validated")
                 return self._retry(doc, "mens", comment or "afgekeurd zonder toelichting")

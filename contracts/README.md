@@ -33,6 +33,10 @@ quarantine/<batch_id>/
   landing_schema.yml    het contract waaraan de batch moet voldoen
 ```
 
+## Blijvende regels
+
+Een goedgekeurd recept kan met `save_as_rule` in het besluit als regel worden bewaard. De console herkent een terugkerende afwijking aan de signatuur van het incident (welke controle faalt op welke kolom) en geeft de passende regel mee in het antwoord op `claim`. De healer past het recept dan toe zonder agent en zet `rule_id` in het voorstel. Doorstaat de kandidaat de poort, dan keurt de console automatisch goed.
+
 ## Statussen van een incident
 
 `detected → investigating → proposed → validated → approved → resolved`

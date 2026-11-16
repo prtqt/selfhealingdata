@@ -75,6 +75,12 @@
     <textarea id="comment" name="comment"></textarea>
     <label for="decided_by">Je naam</label>
     <input type="text" id="decided_by" name="decided_by" autocomplete="name">
+    {% if i.status == "validated" and i.proposal.action == "repair" %}
+    <label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:0.95rem">
+      <input type="checkbox" name="save_as_rule" value="1" style="margin-top:4px">
+      <span>Voortaan automatisch zo oplossen als precies dezelfde afwijking terugkomt. De kwaliteitscontrole blijft gelden; je kunt de regel altijd uitzetten.</span>
+    </label>
+    {% endif %}
     <div class="buttons">
       {% if i.status == "validated" %}
       <button class="primary" name="decision" value="approve">Goedkeuren</button>
@@ -92,7 +98,7 @@
     </details>
   </form>
   {% elif i.status == "approved" %}
-  <div class="card"><p style="margin:0">Besluit genomen{% if i.decision %} door {{ i.decision.decided_by }}{% endif %}. Het wordt binnen een minuut uitgevoerd.</p></div>
+  <div class="card"><p style="margin:0">Besluit genomen{% if i.decision %} door {{ i.decision.decided_by }}{% endif %}{% if i.decision and i.decision.auto %} (automatisch){% endif %}. Het wordt binnen een minuut uitgevoerd.</p></div>
   {% else %}
   <h2>Afloop</h2>
   <div class="card"><p style="margin:0">

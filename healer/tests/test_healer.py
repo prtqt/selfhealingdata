@@ -186,3 +186,24 @@ def test_routing_file_covers_every_issue_type_with_a_price():
     assert routing["schema_drift"].model == "claude-opus-5-5" and routing["schema_drift"].fallbacks
     assert not routing["duplicates"].fallbacks and all(r.price_per_mtok[1] > 0 for r in routing.values())
     assert all((ROOT / "healer/prompts" / f"{t}.md").exists() for t in routing)
+
+
+def test_rule_is_applied_without_claude_and_falls_back_when_it_does_not_fit(bundle, tmp_path, monkeypatch):
+    import worker
+    monkeypatch.setattr(worker, "QUARANTINE", bundle.parent)
+    monkeypatch.setattr(worker, "CANDIDATES", tmp_path / "candidates")
+    incident = {"id": "inc-9", "attempt": 1, "quarantine_path": "batch_1", "findings": [FINDING], "feedback": []}
+    rule = {"id": "regel-abc", "created_from": "inc-1", "created_by": "Pieter", "summary": "kopieën weg",
+            "recipe_sql": ["create or replace table work.orders as select distinct * from work.orders"]}
+
+    never = FakeClient([])                                        # Claude mag niet worden aangeroepen
+    proposal = worker.heal(never, worker.load_routing(ROOT / "healer/routing.yml"), {**incident, "rule": rule})
+    assert proposal["rule_id"] == "regel-abc" and never.calls == []
+    assert proposal["fixes"][0]["usage"]["cost_usd"] == 0.0
+    assert len((tmp_path / "candidates/inc-9-a1/orders.csv").read_text().splitlines()) == 3   # kop + 2 rijen
+
+    broken_rule = {**rule, "recipe_sql": ["alter table work.orders rename bestaat_niet to x"]}
+    client = FakeClient([[("submit_diagnosis", DIAGNOSIS)],
+                         [("submit_fix", {"action": "discard", "recipe_sql": [], "rationale": "x"})]])
+    proposal = worker.heal(client, worker.load_routing(ROOT / "healer/routing.yml"), {**incident, "rule": broken_rule})
+    assert proposal.get("rule_id") is None and proposal["action"] == "discard" and len(client.calls) == 2

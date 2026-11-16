@@ -117,6 +117,8 @@ Eén console, twee weergaven. Je wisselt rechtsboven; de keuze wordt onthouden. 
 
 ![Overzicht voor de developer](docs/console-developer.png)
 
+**Blijvende regels.** Bij het goedkeuren kun je aanvinken dat dezelfde afwijking voortaan automatisch zo wordt opgelost. Komt hij terug, dan past de healer het bewaarde recept toe zonder Claude, controleert de pipeline de uitkomst en gaat de batch zonder mens door. Faalt de regel, dan nemen de agents het over. Onder "Regels" zie je hoe vaak elke regel is toegepast en kun je hem uitzetten.
+
 In beide weergaven kun je goedkeuren, afkeuren met een opmerking (de healer probeert het opnieuw met jouw tekst als feedback), de levering laten vervallen, of hem ongewijzigd verwerken. Na drie mislukte pogingen (instelbaar met `MAX_ATTEMPTS`) is het aan een mens.
 
 ## Geheimen buiten de repo houden
@@ -161,6 +163,6 @@ Een volledige run met Claude kost API-tegoed: 13 gevallen per seed, elk met een 
 ## Beperkingen
 
 - Geen login op de console of op Airflow. Alleen lokaal gebruiken.
-- De healer herstelt per batch. Een blijvende wijziging in het bronsysteem (een kolom die voortaan anders heet) levert elke week een nieuw incident op.
+- Een regel past alleen bij exact dezelfde bevindingen (zelfde controle op dezelfde kolom). Recepten met vaste waarden uit één batch, zoals een lijst order-id's, werken een volgende keer niet; de poort vangt dat op en de agents nemen het over.
 - De echte Olist-data loopt in de laatste weken van 2018 leeg. Die weken geven terechte volume-incidenten zonder dat chaos iets deed; de console toont dat na afloop.
 - Kosten in de console zijn een schatting op basis van de prijzen in `healer/routing.yml`.

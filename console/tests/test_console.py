@@ -143,3 +143,48 @@ def test_overviews_per_audience(client):
     post(client, f"/{inc}/resolution", {"outcome": "released", "detail": "ok"})
     po = client.get("/?view=po").text
     assert "Niets wacht op jou" in po and "Hersteld en verwerkt" in po and "1/1" in po and "Pieter" in po
+
+
+def test_approved_recipe_can_become_a_rule_that_auto_approves_next_time(client):
+    inc = to_validated(client)
+    r = client.post(f"/incidents/{inc}/decision", data={"decision": "approve", "decided_by": "Pieter", "save_as_rule": "1"})
+    assert r.status_code == 303
+    rule = client.get("/api/rules").json()[0]
+    assert rule["signature"] == ["orders.order_id:unique_key"] and rule["recipe_sql"] == FIX["recipe_sql"]
+    post(client, f"/{inc}/resolution", {"outcome": "released"})
+
+    # Dezelfde afwijking in een volgende batch: de healer krijgt de regel mee bij het claimen.
+    nxt = post(client, "", {**INCIDENT, "batch_id": "batch_2", "quarantine_path": "batch_2"})["id"]
+    claimed = post(client, f"/{nxt}/claim")
+    assert claimed["rule"]["id"] == rule["id"]
+    post(client, f"/{nxt}/proposal", {**PROPOSAL, "rule_id": rule["id"]})
+    doc = post(client, f"/{nxt}/validation", PASSED)
+    assert doc["status"] == "approved" and doc["decision"]["auto"] and rule["id"] in doc["decision"]["decided_by"]
+    assert client.get("/api/rules").json()[0]["applied"] == 1
+    assert "Blijvende regels" in client.get("/rules").text and "1 keer toegepast" in client.get("/rules").text
+
+
+def test_failing_rule_is_not_retried_and_can_be_switched_off(client):
+    inc = to_validated(client)
+    post(client, f"/{inc}/decision", {"decision": "approve", "save_as_rule": True})
+    post(client, f"/{inc}/resolution", {"outcome": "released"})
+    rule_id = client.get("/api/rules").json()[0]["id"]
+
+    nxt = post(client, "", {**INCIDENT, "batch_id": "batch_2", "quarantine_path": "batch_2"})["id"]
+    post(client, f"/{nxt}/claim")
+    post(client, f"/{nxt}/proposal", {**PROPOSAL, "rule_id": rule_id})
+    assert post(client, f"/{nxt}/validation", FAILED)["status"] == "detected"
+    assert post(client, f"/{nxt}/claim")["rule"] is None           # tweede poging gaat naar de agents
+    assert client.get("/api/rules").json()[0]["failed"] == 1
+
+    assert client.post(f"/rules/{rule_id}/deactivate").status_code == 303
+    other = post(client, "", {**INCIDENT, "batch_id": "batch_3", "quarantine_path": "batch_3"})["id"]
+    assert post(client, f"/{other}/claim")["rule"] is None
+
+
+def test_different_findings_do_not_match_a_rule(client):
+    inc = to_validated(client)
+    post(client, f"/{inc}/decision", {"decision": "approve", "save_as_rule": True})
+    post(client, f"/{inc}/resolution", {"outcome": "released"})
+    other = {**INCIDENT, "batch_id": "batch_2", "findings": [{**FINDING, "table_name": "order_payments"}]}
+    assert post(client, f"/{post(client, '', other)['id']}/claim")["rule"] is None

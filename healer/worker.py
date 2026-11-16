@@ -44,6 +44,10 @@ def heal(client, routing: dict[str, llm.Route], incident: dict) -> dict:
     for f in incident["findings"]:
         by_type.setdefault(f["issue_type"], []).append(f)
     fixes, done = [], []
+    if rule := incident.get("rule"):
+        if proposal := apply_rule(ws, rule, incident, sorted(by_type, key=ORDER.index)[0]):
+            return proposal
+        ws = Workspace(QUARANTINE / Path(incident["quarantine_path"]).name)  # regel paste niet: schone werkkopie voor de agents
     for issue_type in sorted(by_type, key=ORDER.index):
         log(f"{incident['id']}: {issue_type} -> {routing[issue_type].model}")
         fix = agents.heal_issue(client, routing[issue_type], ws, issue_type, by_type[issue_type],
@@ -59,6 +63,27 @@ def heal(client, routing: dict[str, llm.Route], incident: dict) -> dict:
     regels = "1 recept-regel" if len(done) == 1 else f"{len(done)} recept-regels"
     return {"action": "repair", "candidate_path": name, "fixes": fixes,
             "summary": f"Herstelde batch klaar voor controle: {regels} uitgevoerd op de werkkopie."}
+
+
+def apply_rule(ws: Workspace, rule: dict, incident: dict, issue_type: str) -> dict | None:
+    """Past een eerder goedgekeurd recept toe zonder Claude. Lukt dat niet, dan nemen de agents het over."""
+    try:
+        ws.run_recipe(rule["recipe_sql"], commit=True)
+    except Exception as exc:
+        log(f"{incident['id']}: {rule['id']} niet toepasbaar ({exc}); agents nemen het over")
+        return None
+    name = f"{incident['id']}-a{incident['attempt']}"
+    ws.export(CANDIDATES / name)
+    (CANDIDATES / name / "recipe.sql").write_text(";\n\n".join(rule["recipe_sql"]) + ";\n")
+    log(f"{incident['id']}: {rule['id']} toegepast")
+    return {"action": "repair", "candidate_path": name, "rule_id": rule["id"],
+            "summary": f"Bekende afwijking: recept van {rule['id']} toegepast, zonder agent.",
+            "fixes": [{"issue_type": issue_type, "model": rule["id"], "confidence": "high", "action": "repair",
+                       "root_cause": f"Dezelfde afwijking als bij {rule['created_from']}, waarvoor {rule['created_by']} een blijvende regel heeft goedgekeurd.",
+                       "evidence": ["De bevindingen komen exact overeen met de signatuur van de regel."],
+                       "recipe_sql": rule["recipe_sql"], "rationale": "Eerder goedgekeurd recept opnieuw toegepast.",
+                       "business_summary": rule.get("summary", ""),
+                       "usage": {"input_tokens": 0, "output_tokens": 0, "turns": 0, "cost_usd": 0.0}}]}
 
 
 def api(method: str, path: str, **kwargs):

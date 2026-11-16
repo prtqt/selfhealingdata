@@ -103,6 +103,13 @@
           }
         }
       }
+    },
+    "rule_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Gezet als het recept van een blijvende regel komt in plaats van een agent."
     }
   },
   "required": [
