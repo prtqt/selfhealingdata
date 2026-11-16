@@ -106,6 +106,16 @@ Zit er in één batch meer dan één soort fout, dan behandelt de healer ze na e
 
 Na drie mislukte pogingen (instelbaar met `MAX_ATTEMPTS`) krijgt het incident de status "Mens nodig".
 
+## Geheimen buiten de repo houden
+
+Sleutels staan alleen in `.env`, dat door git en Docker wordt genegeerd. Zet na het klonen eenmalig de pre-commit hook aan:
+
+```bash
+make hooks
+```
+
+De hook blokkeert een commit waarin een API-key, een private key, een ingevulde sleutelvariabele of een bestand als `.env` of `kaggle.json` klaarstaat. De regels staan in `scripts/check_secrets.py`; `make test` draait dezelfde controle over alles wat git volgt.
+
 ## Tests
 
 ```bash

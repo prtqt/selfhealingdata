@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blokkeert een commit waarin sleutels of geheime bestanden klaarstaan.
+# Aanzetten: make hooks
+exec python3 "$(git rev-parse --show-toplevel)/scripts/check_secrets.py" --staged

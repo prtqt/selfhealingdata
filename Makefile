@@ -2,7 +2,7 @@ export HOST_UID := $(shell id -u)
 DIRS := source outbox landing quarantine candidates pipeline console chaos
 COMPOSE := docker compose
 
-.PHONY: dirs up core down clean logs chaos report test
+.PHONY: dirs up core down clean logs chaos report test hooks
 
 dirs:            ## uitwisselmappen aanmaken als de huidige gebruiker
 	@mkdir -p $(addprefix data/,$(DIRS))
@@ -31,3 +31,7 @@ report:          ## statisch rapport naar data/console/report.html
 
 test:            ## alle tests, zonder Docker en zonder Claude
 	python -m pytest source/tests chaos/tests pipeline/tests console/tests healer/tests tests -q
+
+hooks:           ## pre-commit hook aanzetten die commits met sleutels of geheimen blokkeert
+	git config core.hooksPath .githooks
+	@echo "pre-commit hook staat aan"

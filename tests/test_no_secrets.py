@@ -1,38 +1,36 @@
-"""Vangnet: er mogen geen sleutels of geheime bestanden in de repo staan."""
-import re
+"""Vangnet: er mogen geen sleutels of geheime bestanden in de repo staan.
+
+De regels zelf staan in scripts/check_secrets.py, dat ook door de pre-commit hook wordt gebruikt.
+"""
 import subprocess
+import sys
 
 from conftest import ROOT
 
-FORBIDDEN_FILES = re.compile(r"(^|/)(\.env(\.(?!example$).*)?|kaggle\.json)$|\.(pem|key|crt|sqlite|duckdb)$")
-SECRET = re.compile(r"sk-ant-[A-Za-z0-9_-]{8,}|KGAT_[A-Za-z0-9]{8,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}"
-                    r"|-----BEGIN [A-Z ]*PRIVATE KEY")
-KEY_VARS = re.compile(r"^\s*(ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|KAGGLE_KEY|KAGGLE_USERNAME|KAGGLE_API_TOKEN)[ \t]*=[ \t]*(\S+)", re.M)
+sys.path.insert(0, str(ROOT / "scripts"))
+import check_secrets  # noqa: E402
 
 
-def tracked():
-    out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
-    return [f for f in out.splitlines() if f]
+def test_nothing_secret_is_tracked():
+    assert check_secrets.find(staged=False) == []
 
 
-def test_no_secret_files_are_tracked():
-    assert [f for f in tracked() if FORBIDDEN_FILES.search(f)] == []
-
-
-def test_no_secret_values_in_tracked_files():
-    hits = []
-    for f in tracked():
-        try:
-            text = (ROOT / f).read_text()
-        except (UnicodeDecodeError, FileNotFoundError):
-            continue
-        if SECRET.search(text):
-            hits.append(f)
-        hits += [f"{f}: {m.group(1)}" for m in KEY_VARS.finditer(text)]  # sleutelvariabele met een ingevulde waarde
-    assert hits == []
+def test_rules_catch_keys_and_secret_files():
+    assert check_secrets.SECRET.search("key = sk-ant-" + "a1b2c3d4e5f6")
+    assert check_secrets.KEY_VARS.search("KAGGLE_KEY=abc123")
+    assert not check_secrets.KEY_VARS.search("KAGGLE_KEY=\nSTART_DATE=2017-02-06")   # leeg in .env.example mag
+    for bad in (".env", ".env.local", "kaggle.json", "certs/server.pem", "data/x.duckdb"):
+        assert check_secrets.FORBIDDEN_FILES.search(bad), bad
+    assert not check_secrets.FORBIDDEN_FILES.search(".env.example")
 
 
 def test_env_is_ignored_by_git_and_docker():
-    ignored = subprocess.run(["git", "check-ignore", ".env", "kaggle.json", "data/x"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    ignored = subprocess.run(["git", "check-ignore", ".env", "kaggle.json", "data/x"], cwd=ROOT,
+                             capture_output=True, text=True).stdout.split()
     assert ignored == [".env", "kaggle.json", "data/x"]
     assert ".env" in (ROOT / ".dockerignore").read_text().splitlines()
+
+
+def test_hook_is_executable_and_runs_the_checker():
+    hook = ROOT / ".githooks/pre-commit"
+    assert hook.stat().st_mode & 0o111 and "check_secrets.py" in hook.read_text()
