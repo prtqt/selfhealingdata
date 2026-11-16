@@ -74,6 +74,7 @@
     <dl>
       <dt>Quarantainebundel</dt><dd><code>data/quarantine/{{ i.quarantine_path }}/</code></dd>
       {% if i.proposal and i.proposal.candidate_path %}<dt>Kandidaat</dt><dd><code>data/candidates/{{ i.proposal.candidate_path }}/</code> (met <code>recipe.sql</code>)</dd>{% endif %}
+      {% if i.partial %}<dt>Deelvrijgave</dt><dd>{{ i.partial.released_orders }} orders ingelezen met status <code>partial</code>, {{ i.partial.held_orders }} vastgehouden</dd>{% endif %}
       <dt>API</dt><dd><code>GET /api/incidents/{{ i.id }}</code></dd>
       <dt>Verbruik</dt><dd>{{ i.tokens }} tokens · ${{ "%.4f"|format(i.cost_usd) }} over alle pogingen</dd>
     </dl>

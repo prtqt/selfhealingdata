@@ -37,7 +37,7 @@
       <p>Voorstel: de levering <b>herstellen</b>{% if i.rows_removed %}; daarbij vervallen {{ i.rows_removed }} regels{% else %} zonder verlies van gegevens{% endif %}.</p>
       {% endif %}
       <p><b>{% if i.revenue %}{{ i.revenue | money }} omzet · {% endif %}{% if i.n_orders %}{{ i.n_orders }} bestellingen{% endif %}</b> {{ "wachten" if i.n_orders else "" }}</p>
-      <p class="muted small">Wacht {{ i.minutes_open | duration }}</p>
+      <p class="muted small">Wacht {{ i.minutes_open | duration }}{% if i.partial %} · {{ i.partial.released_orders }} bestellingen al verwerkt, {{ i.partial.held_orders }} vastgehouden{% endif %}</p>
       <a class="btn" href="/incidents/{{ i.id }}">Bekijken en beslissen</a>
     </div>
     {% endfor %}

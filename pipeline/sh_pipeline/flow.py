@@ -32,23 +32,55 @@ def _quarantine(batch_dir: Path, manifest: dict, findings: list[dict], history: 
     tmp.rename(target)
 
 
-def _report(con, manifest: dict, findings: list[dict], row_counts: dict, impact: dict | None = None) -> None:
+def _report(con, manifest: dict, findings: list[dict], row_counts: dict, impact: dict | None = None,
+            partial: dict | None = None, status: str = "quarantined") -> None:
     """Meldt het incident. Lukt dat niet, dan blijft de batch in quarantaine en volgt een nieuwe poging."""
     try:
         incident_id = console_client.report_incident({
             "batch_id": manifest["batch_id"], "quarantine_path": manifest["batch_id"],
             "window_start": manifest["window_start"], "window_end": manifest["window_end"],
             "row_counts": row_counts, "findings": findings,
-            **({"impact": impact} if impact else {}),
+            **({"impact": impact} if impact else {}), **({"partial": partial} if partial else {}),
         })
-        warehouse.set_status(con, manifest, "quarantined", incident_id)
+        warehouse.set_status(con, manifest, status, incident_id)
     except requests.RequestException as exc:
         log.warning("console niet bereikbaar, incident voor %s wordt later gemeld: %s", manifest["batch_id"], exc)
+
+
+ROW_LEVEL = {"null_spike", "duplicates", "invalid_values", "referential_integrity"}
+
+
+def _partial_release(batch_dir: Path, manifest: dict, findings: list[dict], bad_orders: list[str],
+                     n_orders: int, history: list[tuple]) -> dict | None:
+    """Laadt de bestellingen zonder bevinding alvast in, als dat deel zelf de poort haalt.
+
+    Geeft {released_orders, held_orders} of None als de batch in zijn geheel moet wachten.
+    """
+    if not config.PARTIAL_RELEASE or not bad_orders or not n_orders:
+        return None
+    if {f["issue_type"] for f in findings} - ROW_LEVEL or len(bad_orders) / n_orders > config.PARTIAL_MAX_SHARE:
+        return None
+    subset = config.STATE_DIR / "partial" / manifest["batch_id"]
+    shutil.rmtree(subset, ignore_errors=True)
+    try:
+        released = gate.write_clean_subset(batch_dir, subset, bad_orders)
+        remaining, _ = gate.run_gate(subset, manifest, history)
+        if remaining or not released:
+            return None
+        with warehouse.connect() as con:
+            warehouse.load_batch(con, subset, manifest, "partial")
+        return {"released_orders": released, "held_orders": len(bad_orders)}
+    except Exception as exc:  # deelvrijgave is een extra; bij twijfel wacht de hele batch
+        log.warning("deelvrijgave van %s overgeslagen: %s", manifest["batch_id"], exc)
+        return None
+    finally:
+        shutil.rmtree(subset, ignore_errors=True)
 
 
 def ingest_landing() -> dict:
     """Beoordeelt elke nieuwe batch in landing/: goed naar de marts, fout naar quarantaine."""
     result = {"clean": [], "quarantined": []}
+    rebuild = False
     with warehouse.pipeline_lock():
         with warehouse.connect() as con:
             known = warehouse.known_batches(con)
@@ -57,10 +89,10 @@ def ingest_landing() -> dict:
         # Eerder in quarantaine gezet terwijl de console onbereikbaar was: alsnog melden.
         for batch_id, info in known.items():
             qdir = config.QUARANTINE_DIR / batch_id
-            if info["status"] == "quarantined" and not info["incident_id"] and qdir.exists():
+            if info["status"] in ("quarantined", "partial") and not info["incident_id"] and qdir.exists():
                 findings = json.loads((qdir / "findings.json").read_text())
                 with warehouse.connect() as con:
-                    _report(con, _manifest(qdir), findings, {}, gate.batch_impact(qdir, findings))
+                    _report(con, _manifest(qdir), findings, {}, gate.batch_impact(qdir, findings), status=info["status"])
 
         for batch_dir in batches:
             manifest = _manifest(batch_dir)
@@ -69,18 +101,23 @@ def ingest_landing() -> dict:
                 continue
             with warehouse.connect() as con:
                 history = warehouse.history(con, batch_id)
-            findings, row_counts = gate.run_gate(batch_dir, manifest, history)
+            findings, row_counts, bad_orders = gate.run_gate(batch_dir, manifest, history, with_bad_orders=True)
+            partial = None
+            if findings:
+                partial = _partial_release(batch_dir, manifest, findings, bad_orders, row_counts.get("orders", 0), history)
+                rebuild = rebuild or bool(partial)
             with warehouse.connect() as con:
                 if findings:
+                    status = "partial" if partial else "quarantined"
                     _quarantine(batch_dir, manifest, findings, history)
-                    warehouse.set_status(con, manifest, "quarantined")
-                    _report(con, manifest, findings, row_counts, gate.batch_impact(batch_dir, findings))
+                    warehouse.set_status(con, manifest, status)
+                    _report(con, manifest, findings, row_counts, gate.batch_impact(batch_dir, findings), partial, status)
                     result["quarantined"].append(batch_id)
                 else:
                     warehouse.load_batch(con, batch_dir, manifest, "clean")
                     result["clean"].append(batch_id)
             log.info("%s: %s", batch_id, "quarantaine" if findings else "schoon")
-        if result["clean"]:
+        if result["clean"] or rebuild:
             warehouse.build_marts()
     return result
 
@@ -138,8 +175,11 @@ def release_approved() -> list[str]:
             try:
                 if action == "discard":
                     with warehouse.connect() as con:
-                        warehouse.set_status(con, manifest, "discarded")
-                    outcome = {"outcome": "discarded", "detail": "batch niet ingelezen"}
+                        # Was een deel al vrijgegeven, dan blijft dat staan; alleen de vastgehouden bestellingen vervallen.
+                        kept = warehouse.known_batches(con).get(manifest["batch_id"], {}).get("status") == "partial"
+                        warehouse.set_status(con, manifest, "partial_kept" if kept else "discarded")
+                    outcome = {"outcome": "discarded", "detail": "vastgehouden bestellingen vervallen; de rest stond al in de marts"
+                               if kept else "batch niet ingelezen"}
                 elif action == "release_original":
                     with warehouse.connect() as con:
                         counts = warehouse.load_batch(con, qdir, manifest, "released_unchecked")

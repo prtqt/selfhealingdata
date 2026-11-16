@@ -60,6 +60,23 @@
         "affected_rows",
         "waiting_reports"
       ]
+    },
+    "partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Gezet als de bestellingen zonder bevinding al zijn ingelezen.",
+      "properties": {
+        "released_orders": {
+          "type": "integer"
+        },
+        "held_orders": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "released_orders",
+        "held_orders"
+      ]
     }
   },
   "required": [

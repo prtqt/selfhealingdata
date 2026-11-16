@@ -100,8 +100,11 @@ def run_dbt(args: list[str], env_extra: dict[str, str]) -> None:
         raise RuntimeError(f"dbt {' '.join(args)} mislukt:\n{res.stdout[-4000:]}\n{res.stderr[-2000:]}")
 
 
-def run_gate(batch_dir: Path, manifest: dict, history: list[tuple]) -> tuple[list[dict], dict[str, int]]:
-    """Geeft (bevindingen, rijaantallen per tabel). Geen bevindingen betekent: batch is goed."""
+def run_gate(batch_dir: Path, manifest: dict, history: list[tuple], with_bad_orders: bool = False):
+    """Geeft (bevindingen, rijaantallen per tabel). Geen bevindingen betekent: batch is goed.
+
+    Met with_bad_orders komt er een derde waarde bij: de order-id's die door een rijgebonden bevinding zijn geraakt.
+    """
     config.STATE_DIR.mkdir(parents=True, exist_ok=True)
     db_path = config.STATE_DIR / "gate.duckdb"
     db_path.unlink(missing_ok=True)
@@ -116,6 +119,7 @@ def run_gate(batch_dir: Path, manifest: dict, history: list[tuple]) -> tuple[lis
         cur = con.execute("select * from dq.dq_findings")
         names = [d[0] for d in cur.description]
         findings = [dict(zip(names, row)) for row in cur.fetchall()]
+        bad_orders = [r[0] for r in con.execute("select order_id from dq.dq_bad_orders").fetchall()]
     finally:
         con.close()
     for f in findings:
@@ -123,4 +127,24 @@ def run_gate(batch_dir: Path, manifest: dict, history: list[tuple]) -> tuple[lis
         f["n_affected"], f["n_total"] = int(f["n_affected"]), int(f["n_total"])
         f["pct_affected"] = float(f["pct_affected"]) if f["pct_affected"] is not None else None
     db_path.unlink(missing_ok=True)
-    return findings, row_counts
+    return (findings, row_counts, bad_orders) if with_bad_orders else (findings, row_counts)
+
+
+def write_clean_subset(batch_dir: Path, target: Path, bad_orders: list[str]) -> int:
+    """Schrijft de batch zonder de geraakte bestellingen en alles wat erbij hoort. Geeft het aantal overgebleven orders."""
+    target.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect()
+    con.execute("create table bad (order_id varchar)")
+    con.executemany("insert into bad values (?)", [[o] for o in bad_orders])
+    read = lambda t: f"read_csv('{batch_dir / (t + '.csv')}', all_varchar=true, header=true, null_padding=true)"
+    con.execute(f"create table kept as select * from {read('orders')} where order_id is not null and order_id not in (select order_id from bad)")
+    selects = {
+        "orders": "select * from kept",
+        "order_items": f"select * from {read('order_items')} where order_id in (select order_id from kept)",
+        "order_payments": f"select * from {read('order_payments')} where order_id in (select order_id from kept)",
+        "customers": f"select * from {read('customers')} where customer_id in (select customer_id from kept)",
+        "products": f"select * from {read('products')}",
+    }
+    for table, sql in selects.items():
+        con.execute(f"copy ({sql}) to '{target / (table + '.csv')}' (header, delimiter ',')")
+    return con.execute("select count(*) from kept").fetchone()[0]

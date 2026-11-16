@@ -17,7 +17,11 @@
   {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
 
   {% if i.group != "done" %}
+  {% if i.partial %}
+  <div class="card"><b>Gevolg nu:</b> {{ i.partial.released_orders }} bestellingen van deze week staan al in de rapportage. Alleen de {{ i.partial.held_orders }} geraakte bestellingen wachten op de afhandeling.</div>
+  {% else %}
   <div class="card"><b>Gevolg nu:</b> deze week zit niet in de rapportage tot de levering is afgehandeld{% if i.reports %}. Dat raakt: {{ i.reports | join(", ") }}{% endif %}. De andere weken zijn niet geraakt.</div>
+  {% endif %}
   {% endif %}
 
   <h2>Wat is er aan de hand</h2>

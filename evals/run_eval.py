@@ -167,6 +167,15 @@ def as_markdown(label: str, summary: list[dict], results: list[dict]) -> str:
 
 
 def main(argv=None) -> dict:
+    saved = dict(os.environ)   # het harnas zet paden in de omgeving; na afloop is alles weer zoals het was
+    try:
+        return _main(argv)
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+
+
+def _main(argv=None) -> dict:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--types", nargs="*", help="alleen deze soorten fouten")
     ap.add_argument("--seeds", type=int, default=1, help="aantal seeds per variant")

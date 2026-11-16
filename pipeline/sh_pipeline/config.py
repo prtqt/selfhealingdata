@@ -11,3 +11,6 @@ WAREHOUSE_PATH = Path(os.environ.get("WAREHOUSE_PATH", STATE_DIR / "warehouse.du
 DBT_DIR = Path(os.environ.get("DBT_DIR", Path(__file__).resolve().parents[1] / "dbt"))
 CONTRACT_PATH = Path(os.environ.get("CONTRACT_PATH", "/contracts/landing_schema.yml"))
 CONSOLE_URL = os.environ.get("CONSOLE_URL", "http://console:8000").rstrip("/")
+# Bestellingen zonder bevinding alvast doorlaten als hoogstens dit aandeel van de batch is geraakt.
+PARTIAL_RELEASE = os.environ.get("PARTIAL_RELEASE", "true").lower() == "true"
+PARTIAL_MAX_SHARE = float(os.environ.get("PARTIAL_MAX_SHARE", "0.5"))

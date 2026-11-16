@@ -200,3 +200,31 @@ def test_recurring_drift_is_healed_by_a_rule_without_claude_or_human(stack, batc
     stack.flow.release_approved()
     with stack.warehouse.connect() as con:
         assert con.execute("select status from meta.batch_registry order by batch_id").fetchall() == [("healed",), ("healed",)]
+
+
+def test_clean_orders_are_released_while_only_affected_orders_wait(env, batches, monkeypatch):
+    monkeypatch.setenv("PARTIAL_RELEASE", "true")
+    flow, warehouse = importlib.import_module("sh_pipeline.flow"), importlib.import_module("sh_pipeline.warehouse")
+    broken = env / "landing" / batches[0].name
+    shutil.copytree(batches[0], broken)
+    done = inject(broken, "invalid_values", random.Random(2), "negative_price", fraction=0.1)
+    total = csv_rows(batches[0] / "orders.csv")
+
+    flow.ingest_landing()
+    with warehouse.connect() as con:
+        assert con.execute("select status from meta.batch_registry").fetchall() == [("partial",)]
+        released, bad_prices = con.execute("select count(*), count(*) filter (where items_value < 0) from marts.fct_orders").fetchone()
+    assert 0 < total - released <= done["n_affected"] and bad_prices == 0     # geraakte orders buiten de marts
+    assert (env / "quarantine" / batches[0].name / "order_items.csv").read_text() == (broken / "order_items.csv").read_text()
+
+
+def test_structural_problems_hold_the_whole_batch(env, batches, monkeypatch):
+    monkeypatch.setenv("PARTIAL_RELEASE", "true")
+    flow, warehouse = importlib.import_module("sh_pipeline.flow"), importlib.import_module("sh_pipeline.warehouse")
+    broken = env / "landing" / batches[0].name
+    shutil.copytree(batches[0], broken)
+    inject(broken, "schema_drift", random.Random(2), "decimal_comma")
+    flow.ingest_landing()
+    with warehouse.connect() as con:
+        assert con.execute("select status from meta.batch_registry").fetchall() == [("quarantined",)]
+        assert con.execute("select count(*) from raw.orders").fetchone()[0] == 0
