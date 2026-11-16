@@ -32,13 +32,14 @@ def _quarantine(batch_dir: Path, manifest: dict, findings: list[dict], history: 
     tmp.rename(target)
 
 
-def _report(con, manifest: dict, findings: list[dict], row_counts: dict) -> None:
+def _report(con, manifest: dict, findings: list[dict], row_counts: dict, impact: dict | None = None) -> None:
     """Meldt het incident. Lukt dat niet, dan blijft de batch in quarantaine en volgt een nieuwe poging."""
     try:
         incident_id = console_client.report_incident({
             "batch_id": manifest["batch_id"], "quarantine_path": manifest["batch_id"],
             "window_start": manifest["window_start"], "window_end": manifest["window_end"],
             "row_counts": row_counts, "findings": findings,
+            **({"impact": impact} if impact else {}),
         })
         warehouse.set_status(con, manifest, "quarantined", incident_id)
     except requests.RequestException as exc:
@@ -59,7 +60,7 @@ def ingest_landing() -> dict:
             if info["status"] == "quarantined" and not info["incident_id"] and qdir.exists():
                 findings = json.loads((qdir / "findings.json").read_text())
                 with warehouse.connect() as con:
-                    _report(con, _manifest(qdir), findings, {})
+                    _report(con, _manifest(qdir), findings, {}, gate.batch_impact(qdir, findings))
 
         for batch_dir in batches:
             manifest = _manifest(batch_dir)
@@ -73,7 +74,7 @@ def ingest_landing() -> dict:
                 if findings:
                     _quarantine(batch_dir, manifest, findings, history)
                     warehouse.set_status(con, manifest, "quarantined")
-                    _report(con, manifest, findings, row_counts)
+                    _report(con, manifest, findings, row_counts, gate.batch_impact(batch_dir, findings))
                     result["quarantined"].append(batch_id)
                 else:
                     warehouse.load_batch(con, batch_dir, manifest, "clean")

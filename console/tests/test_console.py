@@ -188,3 +188,17 @@ def test_different_findings_do_not_match_a_rule(client):
     post(client, f"/{inc}/resolution", {"outcome": "released"})
     other = {**INCIDENT, "batch_id": "batch_2", "findings": [{**FINDING, "table_name": "order_payments"}]}
     assert post(client, f"/{post(client, '', other)['id']}/claim")["rule"] is None
+
+
+def test_product_owner_sees_business_impact_and_biggest_first(client):
+    def waiting(batch, revenue):
+        inc = post(client, "", {**INCIDENT, "batch_id": batch, "quarantine_path": batch, "window_start": "2017-03-06",
+                               "impact": {"orders": 246, "revenue": revenue, "affected_rows": 5, "waiting_reports": ["Omzet per dag"]}})["id"]
+        post(client, f"/{inc}/claim"); post(client, f"/{inc}/proposal", PROPOSAL); post(client, f"/{inc}/validation", PASSED)
+        return inc
+    small, big = waiting("batch_a", 1200.0), waiting("batch_b", 48250.4)
+    po = client.get("/?view=po").text
+    assert "R$ 48.250 omzet" in po and "R$ 49.450 omzet" in po          # per levering en opgeteld
+    assert po.index(f"/incidents/{big}") < po.index(f"/incidents/{small}")
+    detail = client.get(f"/incidents/{big}?view=po").text
+    assert "Dat raakt: Omzet per dag" in detail and "246 bestellingen" in detail

@@ -63,6 +63,26 @@ def stage_batch(con, batch_dir: Path, manifest: dict, history: list[tuple], cont
     return row_counts
 
 
+def batch_impact(batch_dir: Path, findings: list[dict]) -> dict:
+    """Wat er zakelijk in deze batch zit: bestellingen, omzet en de rapporten die erop wachten."""
+    contract, con = load_contract(), duckdb.connect()
+    def scalar(table: str, expr: str):
+        path = batch_dir / f"{table}.csv"
+        if not path.exists() or path.stat().st_size == 0:
+            return None
+        select, _ = conformed_select(con, path, list(contract[table]["columns"]))
+        return con.execute(f"select {expr} from ({select})").fetchone()[0]
+    revenue = scalar("order_payments", "sum(try_cast(payment_value as double))")
+    return {"orders": int(scalar("orders", "count(distinct order_id)") or 0),
+            "revenue": round(float(revenue), 2) if revenue is not None else None,
+            "affected_rows": max((f["n_affected"] for f in findings), default=0),
+            "waiting_reports": WAITING_REPORTS}
+
+
+# Rapporten die uit de marts worden gevoed en dus wachten zolang een batch in quarantaine staat.
+WAITING_REPORTS = ["Omzet per dag", "Bestellingen per klantregio", "Productassortiment"]
+
+
 def run_dbt(args: list[str], env_extra: dict[str, str]) -> None:
     config.STATE_DIR.mkdir(parents=True, exist_ok=True)
     env = {

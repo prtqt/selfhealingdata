@@ -74,6 +74,13 @@ def plain_finding(f: dict) -> str:
     return f"{n} {t} hebben een waarde die niet kan kloppen: {f['details']}."
 
 
+def money(amount: float | None) -> str:
+    """Bedrag in Braziliaanse real, zoals de Olist-data."""
+    if amount is None:
+        return ""
+    return "R$ " + f"{amount:,.0f}".replace(",", ".")
+
+
 def minutes_between(a: str, b: str) -> float:
     from datetime import datetime
     return (datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds() / 60
@@ -113,6 +120,7 @@ templates.env.globals.update(STATUS_LABELS=STATUS_LABELS, ISSUE_LABELS=ISSUE_LAB
                              PO_GROUP_LABELS=PO_GROUP_LABELS, TABLES_NL=TABLES_NL)
 templates.env.filters["nl_date"] = nl_date
 templates.env.filters["duration"] = duration
+templates.env.filters["money"] = money
 templates.env.filters["tojson_pretty"] = lambda v: json.dumps(v, indent=2, ensure_ascii=False)
 
 
@@ -232,7 +240,10 @@ def view(doc: dict) -> dict:
             "plain_findings": [plain_finding(f) for f in doc["findings"]],
             "changes": changes,
             "rows_removed": sum(max(c["before"] - c["after"], 0) for c in changes),
-            "n_orders": doc.get("row_counts", {}).get("orders"),
+            "n_orders": (doc.get("impact") or {}).get("orders") or doc.get("row_counts", {}).get("orders"),
+            "revenue": (doc.get("impact") or {}).get("revenue"),
+            "reports": (doc.get("impact") or {}).get("waiting_reports", []),
+            "revenue_sort": (doc.get("impact") or {}).get("revenue") or 0,
             "minutes_open": minutes_between(doc["created_at"], doc["updated_at"] if closed else now())}
 
 
@@ -255,7 +266,8 @@ def summary(incidents: list[dict]) -> dict:
             "repaired": sum(1 for i in done if i.get("final_action") == "repair"),
             "first_time_right": sum(1 for i in done if i.get("final_action") == "repair" and i["attempt"] == 1),
             "median_lead": lead[len(lead) // 2] if lead else None,
-            "weeks_missing": [i["week"] for i in incidents if i["status"] not in CLOSED]}
+            "weeks_missing": [i["week"] for i in incidents if i["status"] not in CLOSED],
+            "revenue_missing": sum(i["revenue"] or 0 for i in incidents if i["status"] not in CLOSED)}
 
 
 @app.get("/", response_class=HTMLResponse)

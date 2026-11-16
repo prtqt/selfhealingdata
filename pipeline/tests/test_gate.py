@@ -102,3 +102,14 @@ def test_volume_is_judged_against_history(gate, tmp_path):
     (batch / "products.csv").unlink()
     findings, _ = gate.run_gate(batch, MANIFEST, normal)
     assert kinds(findings) == {("volume_anomaly", "products", "missing_table")}
+
+
+def test_impact_counts_orders_and_revenue_and_survives_unreadable_amounts(gate, tmp_path):
+    batch = make_batch(tmp_path / "b")
+    impact = gate.batch_impact(batch, [{"n_affected": 3}, {"n_affected": 7}])
+    assert (impact["orders"], impact["revenue"], impact["affected_rows"]) == (40, 2400.0, 7)
+    assert "Omzet per dag" in impact["waiting_reports"]
+    edit(batch, "order_payments", lambda r: [r[0]] + [x[:4] + ["60,00"] for x in r[1:]])
+    assert gate.batch_impact(batch, [])["revenue"] is None
+    (batch / "order_payments.csv").unlink()
+    assert gate.batch_impact(batch, [])["revenue"] is None

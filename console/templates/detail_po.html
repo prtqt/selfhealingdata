@@ -12,12 +12,12 @@
   {% include "_header.html" %}
   <p class="small"><a href="/">← Overzicht</a></p>
   <h1>Levering week van {{ i.week }} <span class="badge g-{{ i.group }}">{{ PO_GROUP_LABELS[i.group] }}</span></h1>
-  <p class="muted">{% if i.n_orders %}{{ i.n_orders }} bestellingen · {% endif %}{% if i.group == "done" %}afgehandeld in {{ i.minutes_open | duration }}{% else %}open sinds {{ i.minutes_open | duration }}{% endif %}</p>
+  <p class="muted">{% if i.revenue %}{{ i.revenue | money }} omzet · {% endif %}{% if i.n_orders %}{{ i.n_orders }} bestellingen · {% endif %}{% if i.group == "done" %}afgehandeld in {{ i.minutes_open | duration }}{% else %}open sinds {{ i.minutes_open | duration }}{% endif %}</p>
 
   {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
 
   {% if i.group != "done" %}
-  <div class="card"><b>Gevolg nu:</b> deze week zit niet in de rapportage tot de levering is afgehandeld. De andere weken zijn niet geraakt.</div>
+  <div class="card"><b>Gevolg nu:</b> deze week zit niet in de rapportage tot de levering is afgehandeld{% if i.reports %}. Dat raakt: {{ i.reports | join(", ") }}{% endif %}. De andere weken zijn niet geraakt.</div>
   {% endif %}
 
   <h2>Wat is er aan de hand</h2>

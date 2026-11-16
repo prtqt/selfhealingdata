@@ -28,6 +28,38 @@
       "items": {
         "$ref": "#/$defs/finding"
       }
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Wat er zakelijk op deze batch wacht.",
+      "properties": {
+        "orders": {
+          "type": "integer"
+        },
+        "revenue": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Som van de betalingen in de batch; null als die niet leesbaar zijn."
+        },
+        "affected_rows": {
+          "type": "integer"
+        },
+        "waiting_reports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "orders",
+        "revenue",
+        "affected_rows",
+        "waiting_reports"
+      ]
     }
   },
   "required": [

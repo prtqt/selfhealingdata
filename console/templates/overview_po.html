@@ -11,13 +11,13 @@
 <main>
   {% include "_header.html" %}
   {% set s = summary %}
-  {% set waiting = all | selectattr("group", "equalto", "wait") | list %}
+  {% set waiting = all | selectattr("group", "equalto", "wait") | sort(attribute="revenue_sort", reverse=true) | list %}
   {% set busy = all | selectattr("group", "in", ["busy", "processing"]) | list %}
   {% set done = all | selectattr("group", "equalto", "done") | list %}
 
   {% if waiting %}
   <h1 class="hero">{{ waiting | length }} {{ "levering wacht" if waiting | length == 1 else "leveringen wachten" }} op jouw besluit</h1>
-  <p class="lede muted">Zolang je niet beslist, ontbreken deze weken in de rapportage.</p>
+  <p class="lede muted">Zolang je niet beslist, ontbreken deze weken in de rapportage. De levering met de meeste omzet staat vooraan.</p>
   {% else %}
   <h1 class="hero">Niets wacht op jou</h1>
   <p class="lede muted">{% if busy %}{{ busy | length }} {{ "levering wordt" if busy | length == 1 else "leveringen worden" }} nog onderzocht of verwerkt.{% else %}Alle leveringen zijn verwerkt.{% endif %}</p>
@@ -36,7 +36,8 @@
       {% else %}
       <p>Voorstel: de levering <b>herstellen</b>{% if i.rows_removed %}; daarbij vervallen {{ i.rows_removed }} regels{% else %} zonder verlies van gegevens{% endif %}.</p>
       {% endif %}
-      <p class="muted small">Wacht {{ i.minutes_open | duration }}{% if i.n_orders %} · {{ i.n_orders }} bestellingen in deze levering{% endif %}</p>
+      <p><b>{% if i.revenue %}{{ i.revenue | money }} omzet · {% endif %}{% if i.n_orders %}{{ i.n_orders }} bestellingen{% endif %}</b> {{ "wachten" if i.n_orders else "" }}</p>
+      <p class="muted small">Wacht {{ i.minutes_open | duration }}</p>
       <a class="btn" href="/incidents/{{ i.id }}">Bekijken en beslissen</a>
     </div>
     {% endfor %}
@@ -45,7 +46,7 @@
 
   <h2>Hoe staat het ervoor</h2>
   <div class="kpis">
-    <div class="kpi"><b>{{ s.weeks_missing | length }}</b><span>weken ontbreken nu in de rapportage</span></div>
+    <div class="kpi"><b>{{ s.weeks_missing | length }}</b><span>weken ontbreken nu in de rapportage{% if s.revenue_missing %} ({{ s.revenue_missing | money }} omzet){% endif %}</span></div>
     <div class="kpi"><b>{{ s.repaired }}</b><span>hersteld en verwerkt</span></div>
     <div class="kpi"><b>{{ s.counts.discarded }}</b><span>niet gebruikt</span></div>
     <div class="kpi"><b>{{ s.first_time_right }}/{{ s.repaired }}</b><span>hersteld bij het eerste voorstel</span></div>
@@ -56,10 +57,11 @@
   {% if busy %}
   <h2>Wordt aan gewerkt</h2>
   <div class="card scroll"><table>
-    <tr><th>Week van</th><th>Wat is er mis</th><th>Stand</th><th>Sinds</th></tr>
+    <tr><th>Week van</th><th>Wat is er mis</th><th class="num">Omzet</th><th>Stand</th><th>Sinds</th></tr>
     {% for i in busy %}
     <tr><td><a href="/incidents/{{ i.id }}">{{ i.week }}</a></td>
         <td>{% for t in i.types %}<span class="tag">{{ PO_ISSUE_LABELS[t] }}</span>{% endfor %}</td>
+        <td class="num">{{ i.revenue | money or "–" }}</td>
         <td><span class="badge g-{{ i.group }}">{{ PO_GROUP_LABELS[i.group] }}</span>{% if i.attempt > 1 %} <span class="muted small">poging {{ i.attempt }}</span>{% endif %}</td>
         <td class="muted">{{ i.minutes_open | duration }}</td></tr>
     {% endfor %}
