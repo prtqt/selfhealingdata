@@ -7,7 +7,7 @@ from conftest import ROOT
 FORBIDDEN_FILES = re.compile(r"(^|/)(\.env(\.(?!example$).*)?|kaggle\.json)$|\.(pem|key|crt|sqlite|duckdb)$")
 SECRET = re.compile(r"sk-ant-[A-Za-z0-9_-]{8,}|KGAT_[A-Za-z0-9]{8,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}"
                     r"|-----BEGIN [A-Z ]*PRIVATE KEY")
-KEY_VARS = re.compile(r"^\s*(ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|KAGGLE_KEY|KAGGLE_USERNAME|KAGGLE_API_TOKEN)\s*=\s*(\S+)", re.M)
+KEY_VARS = re.compile(r"^\s*(ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|KAGGLE_KEY|KAGGLE_USERNAME|KAGGLE_API_TOKEN)[ \t]*=[ \t]*(\S+)", re.M)
 
 
 def tracked():
