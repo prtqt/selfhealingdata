@@ -283,3 +283,11 @@ def test_metrics_endpoint_reports_queue_and_per_model_results(client):
                  'selfhealing_fixes_total{model="claude-haiku-5-5",outcome="failed"} 1',
                  'selfhealing_agent_cost_usd_total{model="claude-haiku-5-5"} 0.020000', "selfhealing_resolution_minutes_median NaN"):
         assert line in text, line
+
+
+def test_partial_release_is_explained_to_the_product_owner(client):
+    inc = post(client, "", {**INCIDENT, "partial": {"released_orders": 228, "held_orders": 39}})["id"]
+    page = client.get(f"/incidents/{inc}?view=po").text
+    assert "228 bestellingen van deze week staan al in de rapportage" in page and "39 geraakte bestellingen wachten" in page
+    assert "deze week zit niet in de rapportage" not in page
+    assert "228 orders ingelezen" in client.get(f"/incidents/{inc}?view=dev").text
