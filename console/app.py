@@ -198,6 +198,11 @@ def resolution(incident_id: str, payload: dict):
     return guarded(store.resolve, incident_id, payload)
 
 
+@app.get("/api/policy")
+def get_policy():
+    return store.policy()
+
+
 @app.get("/api/rules")
 def list_rules():
     return store.rules()
@@ -301,7 +306,15 @@ def decide_form(incident_id: str, decision: str = Form(...), comment: str = Form
 
 @app.get("/rules", response_class=HTMLResponse)
 def rules_page(request: Request):
-    return page(request, "rules", {"rules": store.rules()})
+    return page(request, "rules", {"rules": store.rules(), "policy": store.policy()})
+
+
+@app.post("/policy")
+def save_policy(enabled: str = Form(""), issue_types: list[str] = Form([]), min_confidence: str = Form("high"),
+                max_rows_removed_pct: float = Form(0.0)):
+    store.set_policy({"enabled": bool(enabled), "issue_types": issue_types, "min_confidence": min_confidence,
+                      "max_rows_removed_pct": max_rows_removed_pct})
+    return RedirectResponse("/rules", status_code=303)
 
 
 @app.post("/rules/{rule_id}/deactivate")

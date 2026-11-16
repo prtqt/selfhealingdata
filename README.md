@@ -119,6 +119,8 @@ Eén console, twee weergaven. Je wisselt rechtsboven; de keuze wordt onthouden. 
 
 **Blijvende regels.** Bij het goedkeuren kun je aanvinken dat dezelfde afwijking voortaan automatisch zo wordt opgelost. Komt hij terug, dan past de healer het bewaarde recept toe zonder Claude, controleert de pipeline de uitkomst en gaat de batch zonder mens door. Faalt de regel, dan nemen de agents het over. Onder "Regels" zie je hoe vaak elke regel is toegepast en kun je hem uitzetten.
 
+**Automatisch goedkeuren.** Onder "Regels en beleid" stelt de product owner in welke voorstellen zonder mens door mogen: welke soorten fouten, welke minimale zekerheid en hoeveel procent van de regels hoogstens mag vervallen. Standaard staat dit uit. Een voorstel om een levering weg te gooien gaat nooit automatisch door.
+
 In beide weergaven kun je goedkeuren, afkeuren met een opmerking (de healer probeert het opnieuw met jouw tekst als feedback), de levering laten vervallen, of hem ongewijzigd verwerken. Na drie mislukte pogingen (instelbaar met `MAX_ATTEMPTS`) is het aan een mens.
 
 ## Geheimen buiten de repo houden

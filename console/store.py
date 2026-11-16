@@ -18,6 +18,12 @@ STATUSES = OPEN + CLOSED
 OVERRIDABLE = ("detected", "investigating", "proposed", "validated", "needs_human")
 
 
+ISSUE_TYPES = ("null_spike", "duplicates", "invalid_values", "referential_integrity", "volume_anomaly", "schema_drift")
+CONFIDENCE = ("low", "medium", "high")
+# Standaard beslist altijd een mens.
+DEFAULT_POLICY = {"enabled": False, "issue_types": [], "min_confidence": "high", "max_rows_removed_pct": 0.0}
+
+
 class Conflict(Exception):
     pass
 
@@ -43,6 +49,7 @@ class Store:
         self.db.execute("""create table if not exists incidents (
             id text primary key, batch_id text, status text, created_at text, updated_at text, doc text)""")
         self.db.execute("create table if not exists rules (id text primary key, active integer, doc text)")
+        self.db.execute("create table if not exists settings (key text primary key, doc text)")
         self.lock = threading.Lock()
         self.max_attempts = max_attempts
 
@@ -59,6 +66,37 @@ class Store:
         if status:
             sql, args = sql + " where status = ?", [status]
         return [json.loads(r[0]) for r in self.db.execute(sql + " order by created_at desc, id", args)]
+
+    # ------------------------------------------------------------ beleid
+
+    def policy(self) -> dict:
+        row = self.db.execute("select doc from settings where key = 'policy'").fetchone()
+        return {**DEFAULT_POLICY, **(json.loads(row[0]) if row else {})}
+
+    def set_policy(self, policy: dict) -> dict:
+        clean = {"enabled": bool(policy.get("enabled")),
+                 "issue_types": sorted(set(policy.get("issue_types", [])) & set(ISSUE_TYPES)),
+                 "min_confidence": policy.get("min_confidence") if policy.get("min_confidence") in CONFIDENCE else "high",
+                 "max_rows_removed_pct": max(0.0, min(float(policy.get("max_rows_removed_pct", 0)), 100.0))}
+        self.db.execute("insert or replace into settings values ('policy', ?)", [json.dumps(clean)])
+        self.db.commit()
+        return clean
+
+    def _policy_allows(self, doc: dict) -> str | None:
+        """Reden waarom dit voorstel zonder mens door mag, of None als een mens moet beslissen."""
+        policy, proposal, v = self.policy(), doc["proposal"], doc["validation"]
+        if not policy["enabled"] or proposal["action"] != "repair":
+            return None
+        if not {fx["issue_type"] for fx in proposal["fixes"]} <= set(policy["issue_types"]):
+            return None
+        if any(CONFIDENCE.index(fx["confidence"]) < CONFIDENCE.index(policy["min_confidence"]) for fx in proposal["fixes"]):
+            return None
+        before = sum(v["row_counts_before"].values())
+        removed = sum(max(n - v["row_counts_after"].get(t, 0), 0) for t, n in v["row_counts_before"].items())
+        pct = 100.0 * removed / before if before else 0.0
+        if pct > policy["max_rows_removed_pct"]:
+            return None
+        return f"{pct:.1f}% van de rijen vervalt (grens {policy['max_rows_removed_pct']:g}%), zekerheid voldoende"
 
     # ------------------------------------------------------------ regels
 
@@ -163,6 +201,11 @@ class Store:
                 doc["final_action"] = "repair"
                 self._save(doc, "validated", "kandidaat doorstaat alle controles")
                 return self._save(doc, "approved", f"automatisch goedgekeurd: regel {rule_id}")
+            if validation["passed"] and (reason := self._policy_allows(doc)):
+                doc["decision"] = {"decision": "approve", "decided_by": "beleid", "auto": True, "comment": reason, "at": now()}
+                doc["final_action"] = "repair"
+                self._save(doc, "validated", "kandidaat doorstaat alle controles")
+                return self._save(doc, "approved", f"automatisch goedgekeurd volgens beleid: {reason}")
             if validation["passed"]:
                 return self._save(doc, "validated", "kandidaat doorstaat alle controles")
             remaining = "; ".join(f"{f['issue_type']} op {f['table_name']}.{f.get('column_name') or '*'} "

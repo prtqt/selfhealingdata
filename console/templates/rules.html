@@ -3,13 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Regels · Self-healing console</title>
+  <title>Regels en beleid · Self-healing console</title>
   {% include "_style.html" %}
 </head>
 <body>
 <main>
   {% include "_header.html" %}
-  <h1>Blijvende regels</h1>
+  <h1>Automatisch goedkeuren</h1>
+  <p class="muted lede">Stel in welke voorstellen zonder jouw besluit door mogen. Alles daarbuiten wacht op een mens. Elk automatisch besluit staat in de tijdlijn van het incident.</p>
+  <form class="card decide" method="post" action="/policy" style="border-color:var(--line)">
+    <label style="display:flex;gap:8px;color:var(--ink);font-size:1rem;margin-top:0">
+      <input type="checkbox" name="enabled" value="1" {{ "checked" if policy.enabled }}> <b>Automatisch goedkeuren staat aan</b>
+    </label>
+    <label>Alleen bij deze soorten fouten</label>
+    <div class="buttons" style="margin-top:0">
+      {% for key, label in (PO_ISSUE_LABELS if view == "po" else ISSUE_LABELS).items() %}
+      <label style="display:flex;gap:6px;color:var(--ink);margin:0"><input type="checkbox" name="issue_types" value="{{ key }}" {{ "checked" if key in policy.issue_types }}> {{ label }}</label>
+      {% endfor %}
+    </div>
+    <label for="min_confidence">Minimale zekerheid van de diagnose</label>
+    <select id="min_confidence" name="min_confidence">
+      {% for key, label in [("high", "Hoog"), ("medium", "Redelijk of hoger"), ("low", "Maakt niet uit")] %}<option value="{{ key }}" {{ "selected" if policy.min_confidence == key }}>{{ label }}</option>{% endfor %}
+    </select>
+    <label for="max_rows_removed_pct">Hoogstens dit percentage van de regels mag vervallen</label>
+    <input type="number" id="max_rows_removed_pct" name="max_rows_removed_pct" min="0" max="100" step="0.5" value="{{ policy.max_rows_removed_pct }}" style="width:120px;font:inherit;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)">
+    <div class="buttons"><button class="primary">Beleid opslaan</button></div>
+  </form>
+
+  <h1 style="margin-top:36px">Blijvende regels</h1>
   <p class="muted lede">Oplossingen die je eerder hebt goedgekeurd en die automatisch worden toegepast als precies dezelfde afwijking terugkomt. De kwaliteitscontrole geldt elke keer opnieuw; faalt een regel, dan neemt de AI het over.</p>
   {% for r in rules %}
   <div class="card">

@@ -202,3 +202,30 @@ def test_product_owner_sees_business_impact_and_biggest_first(client):
     assert po.index(f"/incidents/{big}") < po.index(f"/incidents/{small}")
     detail = client.get(f"/incidents/{big}?view=po").text
     assert "Dat raakt: Omzet per dag" in detail and "246 bestellingen" in detail
+
+
+def test_policy_auto_approves_only_within_its_limits(client):
+    assert client.get("/api/policy").json()["enabled"] is False
+    inc = to_validated(client)
+    assert client.get(f"/api/incidents/{inc}").json()["status"] == "validated"     # standaard beslist een mens
+    post(client, f"/{inc}/decision", {"decision": "discard"})
+    post(client, f"/{inc}/resolution", {"outcome": "discarded"})
+
+    form = {"enabled": "1", "issue_types": ["duplicates"], "min_confidence": "high", "max_rows_removed_pct": "10"}
+    assert client.post("/policy", data=form).status_code == 303
+    assert "checked" in client.get("/rules").text
+
+    def run(batch, proposal=PROPOSAL, validation=PASSED):
+        i = post(client, "", {**INCIDENT, "batch_id": batch, "quarantine_path": batch})["id"]
+        post(client, f"/{i}/claim"); post(client, f"/{i}/proposal", proposal)
+        return post(client, f"/{i}/validation", validation)
+
+    ok = run("b_ok")                                                # 5 van 100 rijen weg, zekerheid hoog
+    assert ok["status"] == "approved" and ok["decision"] == {**ok["decision"], "decided_by": "beleid", "auto": True}
+    assert "volgens beleid" in ok["timeline"][-1]["note"]
+    too_many = run("b_loss", validation={**PASSED, "row_counts_after": {"orders": 50}})
+    unsure = run("b_unsure", proposal={**PROPOSAL, "fixes": [{**FIX, "confidence": "medium"}]})
+    other = run("b_type", proposal={**PROPOSAL, "fixes": [{**FIX, "issue_type": "schema_drift"}]})
+    discard = run("b_discard", proposal={**PROPOSAL, "action": "discard", "candidate_path": None},
+                  validation={**PASSED, "row_counts_after": {}})
+    assert [d["status"] for d in (too_many, unsure, other, discard)] == ["validated"] * 4
