@@ -157,6 +157,16 @@ def date_format(batch, rng, fraction):
     return _edit_column(batch, rng, "orders", "order_purchase_timestamp", 1.0, fmt)
 
 
+# ------------------------------------------------------------ distribution_shift
+
+def price_inflation(batch, rng, fraction):
+    """Alle prijzen een vaste factor hoger of lager: elke waarde blijft geldig, het gemiddelde niet."""
+    factor = rng.choice([2.0, 2.5, 0.4])
+    done = _edit_column(batch, rng, "order_items", "price", 1.0, lambda v: f"{float(v) * factor:.2f}",
+                        only=lambda v: _num(v) is not None)
+    return {**done, "factor": factor}
+
+
 VARIANTS = {
     "null_spike": {"nulls": nulls},
     "duplicates": {"duplicate_rows": duplicate_rows},
@@ -165,6 +175,7 @@ VARIANTS = {
     "referential_integrity": {"drop_parent_orders": drop_parent_orders, "scramble_product_ids": scramble_product_ids},
     "volume_anomaly": {"truncate_batch": truncate_batch, "missing_table": missing_table},
     "schema_drift": {"rename_column": rename_column, "decimal_comma": decimal_comma, "date_format": date_format},
+    "distribution_shift": {"price_inflation": price_inflation},
 }
 
 

@@ -17,7 +17,8 @@ def _manifest(batch_dir: Path) -> dict:
     return json.loads((batch_dir / "_manifest.json").read_text())
 
 
-def _quarantine(batch_dir: Path, manifest: dict, findings: list[dict], history: list[tuple]) -> None:
+def _quarantine(batch_dir: Path, manifest: dict, findings: list[dict], history: list[tuple],
+                metrics: list[tuple] = ()) -> None:
     """Schrijft de quarantainebundel atomair (zie contracts/README.md)."""
     target = config.QUARANTINE_DIR / manifest["batch_id"]
     tmp = config.QUARANTINE_DIR / f".tmp-{manifest['batch_id']}"
@@ -27,6 +28,8 @@ def _quarantine(batch_dir: Path, manifest: dict, findings: list[dict], history: 
     (tmp / "findings.json").write_text(json.dumps(findings, indent=2))
     (tmp / "history_stats.csv").write_text(
         "batch_id,table_name,row_count\n" + "".join(f"{b},{t},{n}\n" for b, t, n in history))
+    (tmp / "history_metrics.csv").write_text(
+        "batch_id,metric,value\n" + "".join(f"{b},{m},{v}\n" for b, m, v in metrics))
     shutil.copy(config.CONTRACT_PATH, tmp / "landing_schema.yml")
     shutil.rmtree(target, ignore_errors=True)
     tmp.rename(target)
@@ -51,7 +54,7 @@ ROW_LEVEL = {"null_spike", "duplicates", "invalid_values", "referential_integrit
 
 
 def _partial_release(batch_dir: Path, manifest: dict, findings: list[dict], bad_orders: list[str],
-                     n_orders: int, history: list[tuple]) -> dict | None:
+                     n_orders: int, history: list[tuple], metrics: list[tuple] = ()) -> dict | None:
     """Laadt de bestellingen zonder bevinding alvast in, als dat deel zelf de poort haalt.
 
     Geeft {released_orders, held_orders} of None als de batch in zijn geheel moet wachten.
@@ -64,7 +67,7 @@ def _partial_release(batch_dir: Path, manifest: dict, findings: list[dict], bad_
     shutil.rmtree(subset, ignore_errors=True)
     try:
         released = gate.write_clean_subset(batch_dir, subset, bad_orders)
-        remaining, _ = gate.run_gate(subset, manifest, history)
+        remaining, _ = gate.run_gate(subset, manifest, history, metrics=metrics)
         if remaining or not released:
             return None
         with warehouse.connect() as con:
@@ -100,16 +103,16 @@ def ingest_landing() -> dict:
             if batch_id in known:
                 continue
             with warehouse.connect() as con:
-                history = warehouse.history(con, batch_id)
-            findings, row_counts, bad_orders = gate.run_gate(batch_dir, manifest, history, with_bad_orders=True)
+                history, metrics = warehouse.history(con, batch_id), warehouse.metrics_history(con, batch_id)
+            findings, row_counts, bad_orders = gate.run_gate(batch_dir, manifest, history, with_bad_orders=True, metrics=metrics)
             partial = None
             if findings:
-                partial = _partial_release(batch_dir, manifest, findings, bad_orders, row_counts.get("orders", 0), history)
+                partial = _partial_release(batch_dir, manifest, findings, bad_orders, row_counts.get("orders", 0), history, metrics)
                 rebuild = rebuild or bool(partial)
             with warehouse.connect() as con:
                 if findings:
                     status = "partial" if partial else "quarantined"
-                    _quarantine(batch_dir, manifest, findings, history)
+                    _quarantine(batch_dir, manifest, findings, history, metrics)
                     warehouse.set_status(con, manifest, status)
                     _report(con, manifest, findings, row_counts, gate.batch_impact(batch_dir, findings), partial, status)
                     result["quarantined"].append(batch_id)
@@ -139,8 +142,8 @@ def _check_candidate(incident: dict) -> tuple[list[dict], dict]:
     qdir = config.QUARANTINE_DIR / incident["batch_id"]
     manifest = _manifest(qdir)
     with warehouse.connect() as con:
-        history = warehouse.history(con, manifest["batch_id"])
-    return gate.run_gate(_candidate_dir(incident), manifest, history)
+        history, metrics = warehouse.history(con, manifest["batch_id"]), warehouse.metrics_history(con, manifest["batch_id"])
+    return gate.run_gate(_candidate_dir(incident), manifest, history, metrics=metrics)
 
 
 def validate_candidates() -> list[str]:

@@ -11,6 +11,8 @@ vars:
   volume_low: 0.4         # rijen t.o.v. mediaan van recente batches
   volume_high: 3.0
   volume_min_history: 3
+  shift_low: 0.6          # gemiddelde t.o.v. mediaan van recente batches
+  shift_high: 1.6
 
 models:
   selfhealing:

@@ -20,12 +20,21 @@ def history_of(batches):
     return rows
 
 
+def metrics_of(batches):
+    import duckdb
+    return [(b.name, "avg_price", duckdb.connect().execute(
+        f"select avg(price::double) from read_csv('{b / 'order_items.csv'}', all_varchar=true)").fetchone()[0]) for b in batches]
+
+
 def test_clean_batches_have_no_findings(env, batches):
     from sh_pipeline import gate
     for b in batches[:2]:
         findings, counts = gate.run_gate(b, json.loads((b / "_manifest.json").read_text()), [])
         assert findings == []
         assert counts["orders"] > 100
+    last = batches[5]
+    assert gate.run_gate(last, json.loads((last / "_manifest.json").read_text()), history_of(batches[:5]),
+                         metrics=metrics_of(batches[:5]))[0] == []      # ook met historie: gewone schommeling is geen incident
 
 
 @pytest.mark.parametrize("issue_type,variant", CASES)
@@ -37,7 +46,7 @@ def test_injector_is_detected_as_its_own_type(env, batches, issue_type, variant)
     assert done["variant"] == variant
 
     manifest = json.loads((target / "_manifest.json").read_text())
-    findings, _ = gate.run_gate(target, manifest, history_of(batches[:5]))
+    findings, _ = gate.run_gate(target, manifest, history_of(batches[:5]), metrics=metrics_of(batches[:5]))
     found = {f["issue_type"] for f in findings}
     assert issue_type in found, findings
     # Een verstoring mag hoogstens één ander type als bijwerking opleveren.

@@ -270,3 +270,16 @@ def test_claim_hands_over_lessons_from_human_rejections_of_the_same_kind(client)
 
     other_kind = post(client, "", {**INCIDENT, "batch_id": "batch_3", "findings": [{**FINDING, "issue_type": "null_spike"}]})["id"]
     assert post(client, f"/{other_kind}/claim")["lessons"] == []
+
+
+def test_metrics_endpoint_reports_queue_and_per_model_results(client):
+    to_validated(client)
+    failed = post(client, "", {**INCIDENT, "batch_id": "batch_2"})["id"]
+    post(client, f"/{failed}/claim"); post(client, f"/{failed}/proposal", PROPOSAL); post(client, f"/{failed}/validation", FAILED)
+    text = client.get("/metrics").text
+    for line in ('selfhealing_incidents{status="validated"} 1', 'selfhealing_incidents{status="detected"} 1',
+                 'selfhealing_incidents_by_type{issue_type="duplicates"} 2', "selfhealing_waiting_for_human 1",
+                 'selfhealing_fixes_total{model="claude-haiku-5-5",outcome="passed"} 1',
+                 'selfhealing_fixes_total{model="claude-haiku-5-5",outcome="failed"} 1',
+                 'selfhealing_agent_cost_usd_total{model="claude-haiku-5-5"} 0.020000', "selfhealing_resolution_minutes_median NaN"):
+        assert line in text, line

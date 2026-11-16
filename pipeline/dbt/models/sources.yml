@@ -12,6 +12,7 @@ sources:
       - name: files
       - name: contract
       - name: history
+      - name: history_metrics
       - name: manifest
   - name: raw            # warehouse: alles als tekst, met batch_id
     schema: raw

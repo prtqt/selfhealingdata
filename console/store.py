@@ -18,7 +18,8 @@ STATUSES = OPEN + CLOSED
 OVERRIDABLE = ("detected", "investigating", "proposed", "validated", "needs_human")
 
 
-ISSUE_TYPES = ("null_spike", "duplicates", "invalid_values", "referential_integrity", "volume_anomaly", "schema_drift")
+ISSUE_TYPES = ("null_spike", "duplicates", "invalid_values", "referential_integrity", "volume_anomaly", "schema_drift",
+               "distribution_shift")
 CONFIDENCE = ("low", "medium", "high")
 # Standaard beslist altijd een mens.
 DEFAULT_POLICY = {"enabled": False, "issue_types": [], "min_confidence": "high", "max_rows_removed_pct": 0.0}

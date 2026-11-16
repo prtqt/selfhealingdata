@@ -7,7 +7,7 @@ from pathlib import Path
 
 import jsonschema
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 import auth
@@ -27,6 +27,7 @@ STATUS_LABELS = {
 ISSUE_LABELS = {
     "null_spike": "Lege waarden", "duplicates": "Duplicaten", "invalid_values": "Ongeldige waarden",
     "referential_integrity": "Kapotte verwijzingen", "volume_anomaly": "Afwijkend volume", "schema_drift": "Schema drift",
+    "distribution_shift": "Verschoven verdeling",
 }
 
 # Dezelfde gegevens, twee lezers. De product owner krijgt gewone taal en het besluit;
@@ -34,6 +35,7 @@ ISSUE_LABELS = {
 PO_ISSUE_LABELS = {
     "null_spike": "Ontbrekende gegevens", "duplicates": "Dubbele gegevens", "invalid_values": "Onmogelijke waarden",
     "referential_integrity": "Losse verwijzingen", "volume_anomaly": "Onvolledige levering", "schema_drift": "Gewijzigd formaat",
+    "distribution_shift": "Opvallende verschuiving",
 }
 PO_GROUPS = {"validated": "wait", "needs_human": "wait", "detected": "busy", "investigating": "busy", "proposed": "busy",
              "approved": "processing", "resolved": "done", "discarded": "done"}
@@ -71,6 +73,8 @@ def plain_finding(f: dict) -> str:
         return f"Er zijn geen {t} aangeleverd."
     if check == "row_count_deviation":
         return f"Het aantal {t} ({n}) wijkt sterk af van wat normaal is."
+    if check.endswith("_shift"):
+        return f"De gemiddelde waarde bij de {t} wijkt sterk af van eerdere weken ({col})."
     if check.startswith("fk_"):
         return f"{n} {t} verwijzen naar gegevens die niet zijn meegeleverd."
     return f"{n} {t} hebben een waarde die niet kan kloppen: {f['details']}."
@@ -146,7 +150,7 @@ async def guard(request: Request, call_next):
     if not auth.ENABLED or path in ("/login", "/api/health"):
         return await call_next(request)
     user = auth.user_from(request.cookies.get("session"))
-    if path.startswith("/api/"):
+    if path.startswith("/api/") or path == "/metrics":
         if auth.token_ok(request.headers.get("authorization")) or user:
             return await call_next(request)
         return JSONResponse({"detail": "token of login vereist"}, status_code=401)
@@ -359,6 +363,50 @@ def decide_form(request: Request, incident_id: str, decision: str = Form(...), c
     except Conflict as exc:
         return RedirectResponse(f"/incidents/{incident_id}?error={exc}", status_code=303)
     return RedirectResponse(f"/incidents/{incident_id}", status_code=303)
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def metrics():
+    """Kengetallen in Prometheus-formaat: hoe staat de wachtrij ervoor en hoe doen de agents het per model."""
+    incidents = [view(d) for d in store.list()]
+    s = summary(incidents)
+    lines = ["# HELP selfhealing_incidents Aantal incidenten per status.", "# TYPE selfhealing_incidents gauge"]
+    lines += [f'selfhealing_incidents{{status="{k}"}} {v}' for k, v in s["counts"].items()]
+    by_type: dict[str, int] = {}
+    per_model: dict[str, dict] = {}
+    auto = 0
+    for i in incidents:
+        for t in i["types"]:
+            by_type[t] = by_type.get(t, 0) + 1
+        auto += bool((i.get("decision") or {}).get("auto"))
+        attempts = [{"proposal": i.get("proposal"), "validation": i.get("validation")}] + i["previous_attempts"]
+        for a in attempts:
+            if not a.get("proposal"):
+                continue
+            passed = (a.get("validation") or {}).get("passed")
+            for fx in a["proposal"]["fixes"]:
+                m = per_model.setdefault(fx["model"], {"cost": 0.0, "tokens": 0, "passed": 0, "failed": 0})
+                usage = fx.get("usage") or {}
+                m["cost"] += usage.get("cost_usd", 0)
+                m["tokens"] += usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+                if passed is not None:
+                    m["passed" if passed else "failed"] += 1
+    lines += ["# HELP selfhealing_incidents_by_type Aantal incidenten per soort fout.", "# TYPE selfhealing_incidents_by_type gauge"]
+    lines += [f'selfhealing_incidents_by_type{{issue_type="{k}"}} {v}' for k, v in sorted(by_type.items())]
+    lines += ["# HELP selfhealing_agent_cost_usd_total Geschatte kosten van de agents per model.", "# TYPE selfhealing_agent_cost_usd_total counter"]
+    lines += [f'selfhealing_agent_cost_usd_total{{model="{k}"}} {v["cost"]:.6f}' for k, v in sorted(per_model.items())]
+    lines += ["# HELP selfhealing_agent_tokens_total Tokens per model.", "# TYPE selfhealing_agent_tokens_total counter"]
+    lines += [f'selfhealing_agent_tokens_total{{model="{k}"}} {v["tokens"]}' for k, v in sorted(per_model.items())]
+    lines += ["# HELP selfhealing_fixes_total Voorstellen per model, naar uitslag van de poort.", "# TYPE selfhealing_fixes_total counter"]
+    lines += [f'selfhealing_fixes_total{{model="{k}",outcome="{o}"}} {v[o]}' for k, v in sorted(per_model.items()) for o in ("passed", "failed")]
+    lines += ["# HELP selfhealing_waiting_for_human Incidenten die op een mens wachten.", "# TYPE selfhealing_waiting_for_human gauge",
+              f'selfhealing_waiting_for_human {s["groups"]["wait"]}',
+              "# HELP selfhealing_auto_approved_total Besluiten door een regel of het beleid.", "# TYPE selfhealing_auto_approved_total counter",
+              f"selfhealing_auto_approved_total {auto}",
+              "# HELP selfhealing_resolution_minutes_median Mediane doorlooptijd van afgehandelde incidenten.",
+              "# TYPE selfhealing_resolution_minutes_median gauge",
+              f'selfhealing_resolution_minutes_median {s["median_lead"] if s["median_lead"] is not None else "NaN"}']
+    return "\n".join(lines) + "\n"
 
 
 @app.get("/login", response_class=HTMLResponse)

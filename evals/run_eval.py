@@ -99,8 +99,10 @@ def run_case(case_id: str, issue_type: str, variant: str, seed: int, batches: li
     manifest = json.loads((broken / "_manifest.json").read_text())
     history = [(b.name, f.stem, sum(rows(f).values())) for b in batches[:-1] for f in b.glob("*.csv")]
     tables = list(gate.load_contract())
+    metrics = [(b.name, "avg_price", sum(float(r[5]) * n for r, n in rows(b / "order_items.csv").items())
+                / max(sum(rows(b / "order_items.csv").values()), 1)) for b in batches[:-1]]
 
-    findings, row_counts = gate.run_gate(broken, manifest, history)
+    findings, row_counts = gate.run_gate(broken, manifest, history, metrics=metrics)
     result = {"case": case_id, "issue_type": issue_type, "variant": variant, "seed": seed,
               "detected": issue_type in {f["issue_type"] for f in findings}, "found_types": sorted({f["issue_type"] for f in findings}),
               "action": None, "passed_gate": False, "recovered": 0.0, "spurious": 0.0, "cost_usd": 0.0, "tokens": 0,
@@ -109,7 +111,7 @@ def run_case(case_id: str, issue_type: str, variant: str, seed: int, batches: li
         return result
 
     manifest_q = {**manifest, "batch_id": case_id}
-    flow._quarantine(broken, manifest_q, findings, history)
+    flow._quarantine(broken, manifest_q, findings, history, metrics)
     incident = {"id": case_id, "attempt": 1, "quarantine_path": case_id, "findings": findings, "feedback": []}
     started = time.time()
     try:
@@ -125,7 +127,7 @@ def run_case(case_id: str, issue_type: str, variant: str, seed: int, batches: li
                   root_causes=[f["root_cause"] for f in proposal["fixes"]])
     if proposal["action"] == "repair":
         candidate = Path(os.environ["CANDIDATES_DIR"]) / proposal["candidate_path"]
-        remaining, _ = gate.run_gate(candidate, manifest, history)
+        remaining, _ = gate.run_gate(candidate, manifest, history, metrics=metrics)
         result.update(passed_gate=not remaining, remaining=sorted({f["check_name"] for f in remaining}),
                       **compare(clean, candidate, tables))
     return result

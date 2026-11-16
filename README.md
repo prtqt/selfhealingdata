@@ -35,7 +35,7 @@ De bron levert elke twee minuten een week aan. De eerste vier batches blijven sc
 make chaos TYPE=schema_drift
 ```
 
-Geldige types: `null_spike`, `duplicates`, `invalid_values`, `referential_integrity`, `volume_anomaly`, `schema_drift`.
+Geldige types: `null_spike`, `duplicates`, `invalid_values`, `referential_integrity`, `volume_anomaly`, `schema_drift`, `distribution_shift`.
 
 Overige commando's: `make logs`, `make report` (statisch `data/console/report.html`), `make down`, `make clean` (ook alle data weg).
 
@@ -87,6 +87,7 @@ Details van de berichten, mappen en statussen: [`contracts/README.md`](contracts
 | `referential_integrity` | orderregels zonder order | `dq_referential_integrity` | Sonnet 5.5 |
 | `volume_anomaly` | een fractie van het normale volume, ontbrekend bestand | `dq_volume_anomaly` | Sonnet 5.5 |
 | `schema_drift` | kolom hernoemd, komma als decimaalteken | `dq_schema_drift` | Opus 5.5 |
+| `distribution_shift` | alle prijzen een factor te hoog, elke waarde nog geldig | `dq_distribution_shift` | Sonnet 5.5 |
 
 - De dbt-modellen staan in `pipeline/dbt/models/quality/`. Drempels staan als `vars` in `dbt_project.yml`.
 - Welk model welke fout behandelt staat in `healer/routing.yml`, samen met de denkdiepte, het maximum aantal stappen en de prijs per token voor de kostenschatting.
@@ -155,6 +156,10 @@ De tests draaien zonder Docker en zonder Claude. Elk component heeft eigen tests
 
 - `test_detection.py`: elke verstoring van chaos wordt door het bijbehorende dbt-model gevangen, en schone batches geven geen bevindingen.
 - `test_e2e.py`: de hele lus met een echte console-server en een nagespeeld Claude-model, tot en met gelijke rijaantallen in de marts als bij een run zonder chaos.
+
+## Bewaking
+
+De console biedt `http://localhost:8000/metrics` in Prometheus-formaat: incidenten per status en per soort fout, hoeveel er op een mens wacht, voorstellen per model naar uitslag van de poort, tokens en kosten per model, automatische besluiten en de mediane doorlooptijd. Console en pipeline hebben een healthcheck in `docker-compose.yml`; `docker compose ps` toont of ze gezond zijn.
 
 ## Meten hoe goed de agents zijn
 

@@ -30,6 +30,7 @@ quarantine/<batch_id>/
   _manifest.json        batch_id, window_start, window_end
   findings.json         bevindingen (zelfde vorm als in incident.json)
   history_stats.csv     batch_id, table_name, row_count van eerdere goede batches
+  history_metrics.csv   batch_id, metric, value van eerdere goede batches (bijv. avg_price)
   landing_schema.yml    het contract waaraan de batch moet voldoen
 ```
 

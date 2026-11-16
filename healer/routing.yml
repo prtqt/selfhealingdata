@@ -9,6 +9,7 @@ routes:
   referential_integrity: {model: claude-sonnet-5-5, effort: medium, max_turns: 15, fallbacks: true}
   volume_anomaly:        {model: claude-sonnet-5-5, effort: medium, max_turns: 12, fallbacks: true}
   schema_drift:          {model: claude-opus-5-5,   effort: high,   max_turns: 20, fallbacks: true}
+  distribution_shift:    {model: claude-sonnet-5-5, effort: high,   max_turns: 15, fallbacks: true}
 
 # Prijs in dollars per miljoen tokens [invoer, uitvoer], voor de kostenschatting in de console.
 prices_per_mtok:

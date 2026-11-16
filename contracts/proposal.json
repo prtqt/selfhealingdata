@@ -42,7 +42,8 @@
               "invalid_values",
               "referential_integrity",
               "volume_anomaly",
-              "schema_drift"
+              "schema_drift",
+              "distribution_shift"
             ]
           },
           "model": {

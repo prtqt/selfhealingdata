@@ -22,7 +22,8 @@ POLL = int(os.environ.get("HEALER_POLL_SECONDS", "10"))
 ROUTING = Path(os.environ.get("ROUTING_PATH", Path(__file__).parent / "routing.yml"))
 
 # Schema eerst rechtzetten: de andere controles gaan uit van de kolommen van het contract.
-ORDER = ["schema_drift", "volume_anomaly", "duplicates", "null_spike", "invalid_values", "referential_integrity"]
+ORDER = ["schema_drift", "volume_anomaly", "duplicates", "null_spike", "invalid_values", "referential_integrity",
+         "distribution_shift"]
 
 
 def log(msg: str) -> None:

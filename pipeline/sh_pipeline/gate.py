@@ -33,7 +33,8 @@ def conformed_select(con: duckdb.DuckDBPyConnection, csv_path: Path, columns: li
     return f"select {', '.join(exprs)} from {reader}", actual
 
 
-def stage_batch(con, batch_dir: Path, manifest: dict, history: list[tuple], contract: dict) -> dict[str, int]:
+def stage_batch(con, batch_dir: Path, manifest: dict, history: list[tuple], contract: dict,
+                metrics: list[tuple] = ()) -> dict[str, int]:
     con.execute("create schema if not exists landing")
     con.execute("create or replace table landing.columns_actual (table_name varchar, column_name varchar)")
     con.execute("create or replace table landing.files (table_name varchar, present boolean, row_count bigint)")
@@ -41,8 +42,11 @@ def stage_batch(con, batch_dir: Path, manifest: dict, history: list[tuple], cont
     con.execute("create or replace table landing.history (batch_id varchar, table_name varchar, row_count bigint)")
     con.execute("create or replace table landing.manifest as select ?::varchar as batch_id, ?::varchar as window_start, ?::varchar as window_end",
                 [manifest["batch_id"], manifest["window_start"], manifest["window_end"]])
+    con.execute("create or replace table landing.history_metrics (batch_id varchar, metric varchar, value double)")
     if history:
         con.executemany("insert into landing.history values (?, ?, ?)", history)
+    if metrics:
+        con.executemany("insert into landing.history_metrics values (?, ?, ?)", list(metrics))
     row_counts = {}
     for table, spec in contract.items():
         columns = list(spec["columns"])
@@ -100,7 +104,8 @@ def run_dbt(args: list[str], env_extra: dict[str, str]) -> None:
         raise RuntimeError(f"dbt {' '.join(args)} mislukt:\n{res.stdout[-4000:]}\n{res.stderr[-2000:]}")
 
 
-def run_gate(batch_dir: Path, manifest: dict, history: list[tuple], with_bad_orders: bool = False):
+def run_gate(batch_dir: Path, manifest: dict, history: list[tuple], with_bad_orders: bool = False,
+             metrics: list[tuple] = ()):
     """Geeft (bevindingen, rijaantallen per tabel). Geen bevindingen betekent: batch is goed.
 
     Met with_bad_orders komt er een derde waarde bij: de order-id's die door een rijgebonden bevinding zijn geraakt.
@@ -110,7 +115,7 @@ def run_gate(batch_dir: Path, manifest: dict, history: list[tuple], with_bad_ord
     db_path.unlink(missing_ok=True)
     con = duckdb.connect(str(db_path))
     try:
-        row_counts = stage_batch(con, batch_dir, manifest, history, load_contract())
+        row_counts = stage_batch(con, batch_dir, manifest, history, load_contract(), metrics)
     finally:
         con.close()
     run_dbt(["run", "--target", "gate", "--select", "tag:gate"], {"GATE_DB_PATH": str(db_path)})

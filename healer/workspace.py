@@ -35,7 +35,7 @@ class Workspace:
         self.con.execute("create schema original; create schema work")
         self.tables = []
         for f in sorted(bundle.glob("*.csv")):
-            if f.stem == "history_stats" or not TABLE_NAME.match(f.stem) or f.stat().st_size == 0:
+            if f.stem in ("history_stats", "history_metrics") or not TABLE_NAME.match(f.stem) or f.stat().st_size == 0:
                 continue
             self.con.execute(
                 f"create table original.{f.stem} as select * from read_csv(?, all_varchar=true, header=true, null_padding=true)",
@@ -46,6 +46,10 @@ class Workspace:
         if (bundle / "history_stats.csv").exists():
             self.con.execute("insert into original.history_stats select * from read_csv(?, header=true)",
                              [str(bundle / "history_stats.csv")])
+        self.con.execute("create table original.history_metrics (batch_id varchar, metric varchar, value double)")
+        if (bundle / "history_metrics.csv").exists():
+            self.con.execute("insert into original.history_metrics select * from read_csv(?, header=true)",
+                             [str(bundle / "history_metrics.csv")])
         self.con.execute("set enable_external_access = false")
         self.con.execute("set lock_configuration = true")
 
